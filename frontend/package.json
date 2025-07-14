@@ -4,13 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "npm run relay && next dev",
+    "dev:relay": "concurrently \"npm run relay:watch\" \"next dev\"",
     "build": "npm run relay && next build",
+    "build:analyze": "ANALYZE=true npm run build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
     "relay": "relay-compiler",
     "relay:watch": "relay-compiler --watch",
-    "schema:download": "curl -X POST -H \"Content-Type: application/json\" -d '{\"query\": \"query IntrospectionQuery { __schema { queryType { name } mutationType { name } subscriptionType { name } types { ...FullType } directives { name description locations args { ...InputValue } } } } fragment FullType on __Type { kind name description fields(includeDeprecated: true) { name description args { ...InputValue } type { ...TypeRef } isDeprecated deprecationReason } inputFields { ...InputValue } interfaces { ...TypeRef } enumValues(includeDeprecated: true) { name description isDeprecated deprecationReason } possibleTypes { ...TypeRef } } fragment InputValue on __InputValue { name description type { ...TypeRef } defaultValue } fragment TypeRef on __Type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } } }\"}' http://localhost:4000/graphql | jq '.data' > schema/schema.json && npx graphql-introspection-json-to-sdl schema/schema.json schema/schema.graphql"
+    "relay:clean": "rimraf src/__generated__ && npm run relay",
+    "schema:download": "curl -X POST -H \"Content-Type: application/json\" -d '{\"query\": \"query IntrospectionQuery { __schema { queryType { name } mutationType { name } subscriptionType { name } types { ...FullType } directives { name description locations args { ...InputValue } } } } fragment FullType on __Type { kind name description fields(includeDeprecated: true) { name description args { ...InputValue } type { ...TypeRef } isDeprecated deprecationReason } inputFields { ...InputValue } interfaces { ...TypeRef } enumValues(includeDeprecated: true) { name description isDeprecated deprecationReason } possibleTypes { ...TypeRef } } fragment InputValue on __InputValue { name description type { ...TypeRef } defaultValue } fragment TypeRef on __Type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name } } } } } } } }\"}' http://localhost:4000/graphql | jq '.data' > schema/schema.json && npx graphql-introspection-json-to-sdl schema/schema.json schema/schema.graphql",
+    "schema:validate": "relay-compiler --validate",
+    "clean": "rimraf .next && rimraf src/__generated__",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "next": "14.2.13",
@@ -27,11 +35,14 @@
     "@types/relay-runtime": "^19.0.2",
     "autoprefixer": "^10.4.21",
     "babel-plugin-relay": "^20.0.0",
+    "concurrently": "^9.2.0",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.13",
     "postcss": "^8.5.6",
     "relay-compiler": "^20.0.0",
+    "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "webpack-bundle-analyzer": "^4.10.2"
   }
 }
