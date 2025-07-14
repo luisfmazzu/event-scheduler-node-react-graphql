@@ -1,5 +1,6 @@
 # Dependencies
-/node_modules
+frontend/node_modules
+backend/node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -7,12 +8,15 @@
 # Testing
 /coverage
 
-# Next.js
-/.next/
-/out/
+# Next.js (Frontend)
+frontend/.next/
+frontend/out/
 
 # Production
 /build
+frontend/build
+backend/build
+backend/dist
 
 # Misc
 .DS_Store
@@ -26,21 +30,31 @@ yarn-error.log*
 # Local env files
 .env*.local
 .env
+frontend/.env*.local
+frontend/.env
+backend/.env*.local
+backend/.env
 
 # Vercel
 .vercel
 
 # TypeScript
 *.tsbuildinfo
-next-env.d.ts
+frontend/next-env.d.ts
 
 # Relay
 /__generated__/
-/src/**/__generated__/
+frontend/src/**/__generated__/
 
 # IDE
 .vscode/
 .idea/
 
 # OS
-Thumbs.db 
+Thumbs.db
+
+# Backend specific
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/logs/ 
