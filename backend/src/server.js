@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const { createHandler } = require('graphql-http/lib/use/express');
 const { buildSchema } = require('graphql');
+const dbManager = require('./database');
 require('dotenv').config();
 
 // Create Express app
@@ -23,11 +24,12 @@ app.use(cors({
 
 app.use(express.json());
 
-// Basic GraphQL schema (will be expanded in later tasks)
+// Enhanced GraphQL schema with database status
 const schema = buildSchema(`
   type Query {
     hello: String
     status: ServerStatus
+    dbStatus: DatabaseStatus
   }
 
   type ServerStatus {
@@ -35,9 +37,20 @@ const schema = buildSchema(`
     timestamp: String!
     version: String!
   }
+
+  type DatabaseStatus {
+    connected: Boolean!
+    healthy: Boolean!
+    path: String!
+    tableCount: Int
+    size: Float
+    readonly: Boolean
+    inTransaction: Boolean
+    error: String
+  }
 `);
 
-// Basic resolvers (will be expanded in later tasks)
+// Enhanced resolvers with database integration
 const rootValue = {
   hello: () => {
     return 'Hello from Event Scheduler GraphQL API!';
@@ -48,6 +61,32 @@ const rootValue = {
       timestamp: new Date().toISOString(),
       version: '1.0.0'
     };
+  },
+  dbStatus: () => {
+    try {
+      const stats = dbManager.getStats();
+      return {
+        connected: dbManager.isConnected,
+        healthy: dbManager.isConnectionHealthy(),
+        path: stats.path,
+        tableCount: stats.tableCount || 0,
+        size: stats.size || 0,
+        readonly: stats.readonly || false,
+        inTransaction: stats.inTransaction || false,
+        error: stats.error || null
+      };
+    } catch (error) {
+      return {
+        connected: false,
+        healthy: false,
+        path: '',
+        tableCount: 0,
+        size: 0,
+        readonly: false,
+        inTransaction: false,
+        error: error.message
+      };
+    }
   }
 };
 
@@ -58,16 +97,27 @@ app.use('/graphql', createHandler({
   graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
   context: (req) => ({
     // Add request context here (user authentication, etc.)
-    req: req
+    req: req,
+    db: dbManager
   })
 }));
 
-// Health check endpoint
+// Enhanced health check endpoint with database status
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
+  const dbHealthy = dbManager.isConnectionHealthy();
+  const dbStats = dbManager.getStats();
+  
+  res.status(dbHealthy ? 200 : 503).json({
+    status: dbHealthy ? 'healthy' : 'unhealthy',
     timestamp: new Date().toISOString(),
-    service: 'event-scheduler-graphql-api'
+    service: 'event-scheduler-graphql-api',
+    database: {
+      connected: dbManager.isConnected,
+      healthy: dbHealthy,
+      path: dbStats.path,
+      tableCount: dbStats.tableCount || 0,
+      size: dbStats.size || 0
+    }
   });
 });
 
@@ -79,7 +129,11 @@ app.get('/', (req, res) => {
       graphql: '/graphql',
       health: '/health'
     },
-    graphiql: process.env.NODE_ENV !== 'production' ? '/graphql' : null
+    graphiql: process.env.NODE_ENV !== 'production' ? '/graphql' : null,
+    database: {
+      connected: dbManager.isConnected,
+      healthy: dbManager.isConnectionHealthy()
+    }
   });
 });
 
@@ -92,24 +146,40 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Event Scheduler GraphQL API running on port ${PORT}`);
-  console.log(`📊 GraphQL endpoint: http://localhost:${PORT}/graphql`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
-  
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`🔍 GraphiQL interface: http://localhost:${PORT}/graphql`);
+// Initialize database and start server
+async function startServer() {
+  try {
+    // Connect to database
+    await dbManager.connect();
+    
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Event Scheduler GraphQL API running on port ${PORT}`);
+      console.log(`📊 GraphQL endpoint: http://localhost:${PORT}/graphql`);
+      console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+      
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔍 GraphiQL interface: http://localhost:${PORT}/graphql`);
+      }
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
   }
-});
+}
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received. Shutting down gracefully...');
+  await dbManager.close();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received. Shutting down gracefully...');
+  await dbManager.close();
   process.exit(0);
-}); 
+});
+
+// Start the server
+startServer(); 
