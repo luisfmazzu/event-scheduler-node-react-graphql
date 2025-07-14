@@ -1,0 +1,17 @@
+# Placeholder GraphQL schema for Relay compiler
+# This will be replaced with the actual schema when the backend is implemented
+
+type Query {
+  # Placeholder query to satisfy Relay compiler
+  _placeholder: String
+}
+
+type Mutation {
+  # Placeholder mutation to satisfy Relay compiler
+  _placeholder: String
+}
+
+type Subscription {
+  # Placeholder subscription to satisfy Relay compiler
+  _placeholder: String
+} 
