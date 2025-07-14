@@ -8,9 +8,9 @@
 const express = require('express');
 const cors = require('cors');
 const { createHandler } = require('graphql-http/lib/use/express');
-const { buildSchema } = require('graphql');
 const dbManager = require('./database');
 const migrationRunner = require('./migrations/migrator');
+const { typeDefs, rootValue, resolvers } = require('./schema');
 require('dotenv').config();
 
 // Create Express app
@@ -25,102 +25,30 @@ app.use(cors({
 
 app.use(express.json());
 
-// Enhanced GraphQL schema with database and migration status
-const schema = buildSchema(`
-  type Query {
-    hello: String
-    status: ServerStatus
-    dbStatus: DatabaseStatus
-    migrationStatus: MigrationStatus
-  }
-
-  type ServerStatus {
-    message: String!
-    timestamp: String!
-    version: String!
-  }
-
-  type DatabaseStatus {
-    connected: Boolean!
-    healthy: Boolean!
-    path: String!
-    tableCount: Int
-    size: Float
-    readonly: Boolean
-    inTransaction: Boolean
-    error: String
-  }
-
-  type MigrationStatus {
-    applied: [String!]!
-    available: [String!]!
-    pending: [String!]!
-    total: Int!
-    appliedCount: Int!
-    pendingCount: Int!
-    error: String
-  }
-`);
-
-// Enhanced resolvers with database and migration integration
-const rootValue = {
-  hello: () => {
-    return 'Hello from Event Scheduler GraphQL API!';
-  },
-  status: () => {
-    return {
-      message: 'Event Scheduler GraphQL API is running',
-      timestamp: new Date().toISOString(),
-      version: '1.0.0'
-    };
-  },
-  dbStatus: () => {
-    try {
-      const stats = dbManager.getStats();
-      return {
-        connected: dbManager.isConnected,
-        healthy: dbManager.isConnectionHealthy(),
-        path: stats.path,
-        tableCount: stats.tableCount || 0,
-        size: stats.size || 0,
-        readonly: stats.readonly || false,
-        inTransaction: stats.inTransaction || false,
-        error: stats.error || null
-      };
-    } catch (error) {
-      return {
-        connected: false,
-        healthy: false,
-        path: '',
-        tableCount: 0,
-        size: 0,
-        readonly: false,
-        inTransaction: false,
-        error: error.message
-      };
-    }
-  },
-  migrationStatus: () => {
-    try {
-      return migrationRunner.getMigrationStatus();
-    } catch (error) {
-      return {
-        applied: [],
-        available: [],
-        pending: [],
-        total: 0,
-        appliedCount: 0,
-        pendingCount: 0,
-        error: error.message
-      };
-    }
-  }
-};
-
-// GraphQL endpoint
+// GraphQL endpoint with schema, root resolvers, and type resolvers
 app.use('/graphql', createHandler({
-  schema: schema,
+  schema: typeDefs,
   rootValue: rootValue,
+  typeResolver: (value, context, info, abstractType) => {
+    // Handle type resolution for interfaces/unions if needed
+    return null;
+  },
+  fieldResolver: (source, args, context, info) => {
+    // Handle field resolution for Event and User types
+    const parentType = info.parentType.name;
+    const fieldName = info.fieldName;
+    
+    if (parentType === 'Event' && resolvers.Event[fieldName]) {
+      return resolvers.Event[fieldName](source, args, context, info);
+    }
+    
+    if (parentType === 'User' && resolvers.User[fieldName]) {
+      return resolvers.User[fieldName](source, args, context, info);
+    }
+    
+    // Default field resolution
+    return source[fieldName];
+  },
   graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
   context: (req) => ({
     // Add request context here (user authentication, etc.)
@@ -160,11 +88,17 @@ app.get('/', (req, res) => {
   
   res.json({
     message: 'Event Scheduler GraphQL API',
+    version: '1.0.0',
     endpoints: {
       graphql: '/graphql',
       health: '/health'
     },
-    graphiql: process.env.NODE_ENV !== 'production' ? '/graphql' : null,
+    features: {
+      graphiql: process.env.NODE_ENV !== 'production' ? '/graphql' : null,
+      queries: ['events', 'event', 'upcomingEvents', 'users', 'user'],
+      mutations: ['Coming in Phase 2'],
+      subscriptions: ['Coming in Phase 3']
+    },
     database: {
       connected: dbManager.isConnected,
       healthy: dbManager.isConnectionHealthy()
@@ -208,6 +142,10 @@ async function startServer() {
       if (process.env.NODE_ENV !== 'production') {
         console.log(`🔍 GraphiQL interface: http://localhost:${PORT}/graphql`);
       }
+      
+      // Show available queries
+      console.log(`📝 Available queries: events, event, upcomingEvents, users, user`);
+      console.log(`🎯 Try a query: { events { id title date organizer { name } } }`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

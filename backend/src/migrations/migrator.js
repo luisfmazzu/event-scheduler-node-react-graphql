@@ -41,6 +41,14 @@ class MigrationRunner {
   }
 
   /**
+   * Calculate checksum for migration content
+   */
+  calculateChecksum(content) {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
+  }
+
+  /**
    * Get list of applied migrations
    */
   getAppliedMigrations() {
@@ -51,7 +59,7 @@ class MigrationRunner {
       return results.map(row => row.filename);
     } catch (error) {
       console.error('❌ Failed to get applied migrations:', error);
-      throw error;
+      return [];
     }
   }
 
@@ -60,22 +68,80 @@ class MigrationRunner {
    */
   getAvailableMigrations() {
     try {
-      const files = fs.readdirSync(this.migrationsPath)
+      const files = fs.readdirSync(this.migrationsPath);
+      return files
         .filter(file => file.endsWith('.sql'))
         .sort();
-      return files;
     } catch (error) {
-      console.error('❌ Failed to read migration files:', error);
-      throw error;
+      console.error('❌ Failed to get available migrations:', error);
+      return [];
     }
   }
 
   /**
-   * Calculate checksum for migration file content
+   * Parse SQL content into executable statements
+   * Handles complex statements like triggers with nested semicolons
    */
-  calculateChecksum(content) {
-    const crypto = require('crypto');
-    return crypto.createHash('sha256').update(content).digest('hex');
+  parseSQL(content) {
+    const statements = [];
+    let currentStatement = '';
+    let inTrigger = false;
+    let triggerDepth = 0;
+    
+    // Split by lines first to handle comments and complex statements
+    const lines = content.split('\n');
+    
+    for (let line of lines) {
+      line = line.trim();
+      
+      // Skip empty lines and comments
+      if (!line || line.startsWith('--')) {
+        continue;
+      }
+      
+      // Check if we're starting a trigger
+      if (line.toUpperCase().includes('CREATE TRIGGER')) {
+        inTrigger = true;
+        triggerDepth = 0;
+      }
+      
+      // Add line to current statement
+      if (currentStatement) {
+        currentStatement += ' ' + line;
+      } else {
+        currentStatement = line;
+      }
+      
+      // Handle trigger depth
+      if (inTrigger) {
+        if (line.toUpperCase().includes('BEGIN')) {
+          triggerDepth++;
+        }
+        if (line.toUpperCase().includes('END')) {
+          triggerDepth--;
+        }
+      }
+      
+      // Check if statement is complete
+      if (line.endsWith(';')) {
+        if (inTrigger && triggerDepth > 0) {
+          // Inside trigger, don't split yet
+          continue;
+        } else {
+          // Statement is complete
+          statements.push(currentStatement.slice(0, -1)); // Remove semicolon
+          currentStatement = '';
+          inTrigger = false;
+        }
+      }
+    }
+    
+    // Add any remaining statement
+    if (currentStatement.trim()) {
+      statements.push(currentStatement);
+    }
+    
+    return statements.filter(s => s.trim().length > 0);
   }
 
   /**
@@ -91,15 +157,20 @@ class MigrationRunner {
       
       // Execute migration in transaction
       const transaction = db.transaction(() => {
-        // Split content by semicolon and execute each statement
-        const statements = content
-          .split(';')
-          .map(s => s.trim())
-          .filter(s => s.length > 0 && !s.startsWith('--'));
+        // Parse SQL content into statements
+        const statements = this.parseSQL(content);
         
-        statements.forEach(statement => {
+        console.log(`📋 Executing ${statements.length} statements for ${filename}`);
+        
+        statements.forEach((statement, index) => {
           if (statement.trim()) {
-            db.exec(statement);
+            try {
+              db.exec(statement);
+              console.log(`  ✅ Statement ${index + 1} executed`);
+            } catch (error) {
+              console.error(`  ❌ Statement ${index + 1} failed:`, statement.substring(0, 100) + '...');
+              throw error;
+            }
           }
         });
         
@@ -173,45 +244,28 @@ class MigrationRunner {
    */
   getMigrationStatus() {
     try {
-      // Connect to database if not already connected
-      if (!dbManager.isConnected) {
-        // This is a sync method, so we need to handle connection differently
-        // For now, return error status if not connected
-        return {
-          error: 'Database not connected. Run migrations first.',
-          applied: [],
-          available: this.getAvailableMigrations(),
-          pending: this.getAvailableMigrations(),
-          total: this.getAvailableMigrations().length,
-          appliedCount: 0,
-          pendingCount: this.getAvailableMigrations().length
-        };
-      }
-      
-      const appliedMigrations = this.getAppliedMigrations();
-      const availableMigrations = this.getAvailableMigrations();
-      const pendingMigrations = availableMigrations.filter(
-        migration => !appliedMigrations.includes(migration)
-      );
+      const applied = this.getAppliedMigrations();
+      const available = this.getAvailableMigrations();
+      const pending = available.filter(migration => !applied.includes(migration));
       
       return {
-        applied: appliedMigrations,
-        available: availableMigrations,
-        pending: pendingMigrations,
-        total: availableMigrations.length,
-        appliedCount: appliedMigrations.length,
-        pendingCount: pendingMigrations.length
+        applied,
+        available,
+        pending,
+        total: available.length,
+        appliedCount: applied.length,
+        pendingCount: pending.length,
+        error: null
       };
     } catch (error) {
-      console.error('❌ Failed to get migration status:', error);
       return {
-        error: error.message,
         applied: [],
         available: [],
         pending: [],
         total: 0,
         appliedCount: 0,
-        pendingCount: 0
+        pendingCount: 0,
+        error: error.message
       };
     }
   }
@@ -254,4 +308,7 @@ class MigrationRunner {
   }
 }
 
-module.exports = new MigrationRunner(); 
+// Create singleton instance
+const migrationRunner = new MigrationRunner();
+
+module.exports = migrationRunner; 
