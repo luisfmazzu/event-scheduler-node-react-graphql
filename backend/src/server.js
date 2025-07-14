@@ -10,6 +10,7 @@ const cors = require('cors');
 const { createHandler } = require('graphql-http/lib/use/express');
 const { buildSchema } = require('graphql');
 const dbManager = require('./database');
+const migrationRunner = require('./migrations/migrator');
 require('dotenv').config();
 
 // Create Express app
@@ -24,12 +25,13 @@ app.use(cors({
 
 app.use(express.json());
 
-// Enhanced GraphQL schema with database status
+// Enhanced GraphQL schema with database and migration status
 const schema = buildSchema(`
   type Query {
     hello: String
     status: ServerStatus
     dbStatus: DatabaseStatus
+    migrationStatus: MigrationStatus
   }
 
   type ServerStatus {
@@ -48,9 +50,19 @@ const schema = buildSchema(`
     inTransaction: Boolean
     error: String
   }
+
+  type MigrationStatus {
+    applied: [String!]!
+    available: [String!]!
+    pending: [String!]!
+    total: Int!
+    appliedCount: Int!
+    pendingCount: Int!
+    error: String
+  }
 `);
 
-// Enhanced resolvers with database integration
+// Enhanced resolvers with database and migration integration
 const rootValue = {
   hello: () => {
     return 'Hello from Event Scheduler GraphQL API!';
@@ -87,6 +99,21 @@ const rootValue = {
         error: error.message
       };
     }
+  },
+  migrationStatus: () => {
+    try {
+      return migrationRunner.getMigrationStatus();
+    } catch (error) {
+      return {
+        applied: [],
+        available: [],
+        pending: [],
+        total: 0,
+        appliedCount: 0,
+        pendingCount: 0,
+        error: error.message
+      };
+    }
   }
 };
 
@@ -102,10 +129,11 @@ app.use('/graphql', createHandler({
   })
 }));
 
-// Enhanced health check endpoint with database status
+// Enhanced health check endpoint with database and migration status
 app.get('/health', (req, res) => {
   const dbHealthy = dbManager.isConnectionHealthy();
   const dbStats = dbManager.getStats();
+  const migrationStatus = migrationRunner.getMigrationStatus();
   
   res.status(dbHealthy ? 200 : 503).json({
     status: dbHealthy ? 'healthy' : 'unhealthy',
@@ -117,12 +145,19 @@ app.get('/health', (req, res) => {
       path: dbStats.path,
       tableCount: dbStats.tableCount || 0,
       size: dbStats.size || 0
+    },
+    migrations: {
+      applied: migrationStatus.appliedCount,
+      pending: migrationStatus.pendingCount,
+      total: migrationStatus.total
     }
   });
 });
 
 // Root endpoint
 app.get('/', (req, res) => {
+  const migrationStatus = migrationRunner.getMigrationStatus();
+  
   res.json({
     message: 'Event Scheduler GraphQL API',
     endpoints: {
@@ -133,6 +168,11 @@ app.get('/', (req, res) => {
     database: {
       connected: dbManager.isConnected,
       healthy: dbManager.isConnectionHealthy()
+    },
+    migrations: {
+      applied: migrationStatus.appliedCount,
+      pending: migrationStatus.pendingCount,
+      total: migrationStatus.total
     }
   });
 });
@@ -146,17 +186,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize database and start server
+// Initialize database, run migrations, and start server
 async function startServer() {
   try {
     // Connect to database
     await dbManager.connect();
+    
+    // Run database migrations
+    await migrationRunner.runMigrations();
     
     // Start server
     app.listen(PORT, () => {
       console.log(`🚀 Event Scheduler GraphQL API running on port ${PORT}`);
       console.log(`📊 GraphQL endpoint: http://localhost:${PORT}/graphql`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+      
+      // Show migration status
+      const migrationStatus = migrationRunner.getMigrationStatus();
+      console.log(`📋 Database migrations: ${migrationStatus.appliedCount}/${migrationStatus.total} applied`);
       
       if (process.env.NODE_ENV !== 'production') {
         console.log(`🔍 GraphiQL interface: http://localhost:${PORT}/graphql`);

@@ -7,6 +7,10 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "dev:debug": "nodemon --inspect src/server.js",
+    "migrate": "node -e \"require('./src/migrations/migrator').runMigrations()\"",
+    "migrate:status": "node -e \"console.log(JSON.stringify(require('./src/migrations/migrator').getMigrationStatus(), null, 2))\"",
+    "migrate:reset": "node -e \"require('./src/migrations/migrator').resetDatabase()\"",
+    "db:init": "node -e \"require('./src/database').connect()\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -18,12 +22,12 @@
   "author": "Luis Felipe Mazzuchetti Ortiz",
   "license": "MIT",
   "dependencies": {
-    "better-sqlite3": "^12.2.0",
+    "better-sqlite3": "^11.5.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "graphql": "^16.10.0",
-    "graphql-http": "^1.22.4"
+    "graphql-http": "^1.23.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
