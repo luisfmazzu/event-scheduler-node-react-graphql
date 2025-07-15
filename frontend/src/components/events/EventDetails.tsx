@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, Clock, User } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, User, Edit, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AttendeeList } from '@/components/attendees/AttendeeList';
 import { RsvpButton } from '@/components/attendees/RsvpButton';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRouter } from 'next/navigation';
 
 interface EventDetailsProps {
   event: {
@@ -33,11 +34,13 @@ interface EventDetailsProps {
 
 export function EventDetails({ event }: EventDetailsProps) {
   const { user, isAuthenticated } = useAuth();
+  const router = useRouter();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAttending, setIsAttending] = useState(event.isUserAttending || false);
   const [attendeeCount, setAttendeeCount] = useState(event.attendeeCount);
   const [attendees, setAttendees] = useState(event.attendees);
   const [optimisticUpdate, setOptimisticUpdate] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Update state when event prop changes
   useEffect(() => {
@@ -51,6 +54,7 @@ export function EventDetails({ event }: EventDetailsProps) {
   const availableSpots = event.maxAttendees ? event.maxAttendees - attendeeCount : null;
   const isEventFull = availableSpots !== null && availableSpots <= 0;
   const isPastEvent = eventDate < new Date();
+  const isOrganizer = isAuthenticated && user && user.id === event.organizer.id;
 
   const handleRsvpChange = (newIsAttending: boolean, eventId: string) => {
     setOptimisticUpdate(true);
@@ -74,6 +78,69 @@ export function EventDetails({ event }: EventDetailsProps) {
     }
   };
 
+  const handleEdit = () => {
+    router.push(`/events/edit/${event.id}`);
+  };
+
+  const handleDelete = async () => {
+    if (!isOrganizer) return;
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to delete "${event.title}"? This action cannot be undone and will affect all attendees.`
+    );
+    
+    if (!confirmed) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      const response = await fetch('http://localhost:4000/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: `
+            mutation DeleteEvent($id: ID!) {
+              deleteEvent(id: $id) {
+                deletedEventId
+                errors {
+                  message
+                }
+              }
+            }
+          `,
+          variables: { id: event.id },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete event');
+      }
+
+      const data = await response.json();
+      
+      if (data.errors) {
+        throw new Error(data.errors[0].message);
+      }
+
+      const result = data.data.deleteEvent;
+      
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(result.errors[0].message);
+      }
+
+      // Redirect to events list after successful deletion
+      router.push('/');
+      
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete event. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Optimistic update indicator */}
@@ -89,29 +156,58 @@ export function EventDetails({ event }: EventDetailsProps) {
       {/* Main Event Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-gray-900">{event.title}</CardTitle>
-          <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-4">
-            <div className="flex items-center gap-1">
-              <Calendar className="w-4 h-4" />
-              <span>{eventDate.toLocaleDateString()} at {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <div className="flex justify-between items-start">
+            <div className="flex-1">
+              <CardTitle className="text-3xl font-bold text-gray-900">{event.title}</CardTitle>
+              <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-4">
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  <span>{eventDate.toLocaleDateString()} at {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="w-4 h-4" />
+                  <span>{event.location}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Users className="w-4 h-4" />
+                  <span className={optimisticUpdate ? "text-blue-600 font-medium" : ""}>
+                    {attendeeCount} attending
+                  </span>
+                  {event.maxAttendees && (
+                    <span className="text-gray-500">/ {event.maxAttendees} max</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  <span>Created {createdDate.toLocaleDateString()}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <MapPin className="w-4 h-4" />
-              <span>{event.location}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="w-4 h-4" />
-              <span className={optimisticUpdate ? "text-blue-600 font-medium" : ""}>
-                {attendeeCount} attending
-              </span>
-              {event.maxAttendees && (
-                <span className="text-gray-500">/ {event.maxAttendees} max</span>
-              )}
-            </div>
-            <div className="flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              <span>Created {createdDate.toLocaleDateString()}</span>
-            </div>
+            
+            {/* Organizer Actions */}
+            {isOrganizer && (
+              <div className="flex gap-2 ml-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEdit}
+                  className="flex items-center gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -138,7 +234,7 @@ export function EventDetails({ event }: EventDetailsProps) {
                 )}
               </div>
               <div className="flex gap-2">
-                {!isPastEvent && (
+                {!isPastEvent && !isOrganizer && (
                   <>
                     {isAuthenticated && user ? (
                       <RsvpButton

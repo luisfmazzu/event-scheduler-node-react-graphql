@@ -207,6 +207,226 @@ const Mutation = {
     }
   },
 
+  updateEvent: async (parent, args, context) => {
+    const { id, input } = args;
+    
+    try {
+      // Check if event exists and get current data
+      const eventQuery = `
+        SELECT e.*, u.name as organizer_name, u.email as organizer_email
+        FROM events e
+        JOIN users u ON e.organizer_id = u.id
+        WHERE e.id = ?
+      `;
+      
+      const events = dbManager.query(eventQuery, [id]);
+      
+      if (events.length === 0) {
+        return {
+          event: null,
+          errors: [{ message: 'Event not found', field: null }]
+        };
+      }
+      
+      const existingEvent = events[0];
+      
+      // For now, we'll assume the user is authorized to update
+      // In a real app, you'd check if the authenticated user is the organizer
+      const organizerId = existingEvent.organizer_id;
+      
+      // Validate input
+      const errors = [];
+      
+      if (input.title !== undefined && (!input.title || input.title.trim().length === 0)) {
+        errors.push({ message: 'Title is required', field: 'title' });
+      }
+      
+      if (input.description !== undefined && (!input.description || input.description.trim().length === 0)) {
+        errors.push({ message: 'Description is required', field: 'description' });
+      }
+      
+      if (input.date !== undefined) {
+        if (!input.date) {
+          errors.push({ message: 'Date is required', field: 'date' });
+        } else {
+          const eventDate = new Date(input.date);
+          const now = new Date();
+          if (eventDate <= now) {
+            errors.push({ message: 'Event date must be in the future', field: 'date' });
+          }
+        }
+      }
+      
+      if (input.location !== undefined && (!input.location || input.location.trim().length === 0)) {
+        errors.push({ message: 'Location is required', field: 'location' });
+      }
+      
+      if (input.maxAttendees !== undefined && input.maxAttendees !== null && input.maxAttendees < 1) {
+        errors.push({ message: 'Maximum attendees must be at least 1', field: 'maxAttendees' });
+      }
+      
+      if (errors.length > 0) {
+        return {
+          event: null,
+          errors
+        };
+      }
+      
+      // Build update query dynamically based on provided fields
+      const updateFields = [];
+      const updateValues = [];
+      
+      if (input.title !== undefined) {
+        updateFields.push('title = ?');
+        updateValues.push(input.title.trim());
+      }
+      
+      if (input.description !== undefined) {
+        updateFields.push('description = ?');
+        updateValues.push(input.description.trim());
+      }
+      
+      if (input.date !== undefined) {
+        updateFields.push('date = ?');
+        updateValues.push(input.date);
+      }
+      
+      if (input.location !== undefined) {
+        updateFields.push('location = ?');
+        updateValues.push(input.location.trim());
+      }
+      
+      if (input.maxAttendees !== undefined) {
+        updateFields.push('max_attendees = ?');
+        updateValues.push(input.maxAttendees);
+      }
+      
+      // Always update the updated_at timestamp
+      updateFields.push('updated_at = datetime(\'now\')');
+      
+      // Add event ID to the end of values array
+      updateValues.push(id);
+      
+      const updateEventQuery = `
+        UPDATE events 
+        SET ${updateFields.join(', ')}
+        WHERE id = ?
+      `;
+      
+      dbManager.run(updateEventQuery, updateValues);
+      
+      // Get the updated event with organizer info
+      const updatedEventQuery = `
+        SELECT 
+          e.id,
+          e.title,
+          e.description,
+          e.date,
+          e.location,
+          e.max_attendees,
+          e.created_at,
+          e.updated_at,
+          u.id as organizer_id,
+          u.name as organizer_name,
+          u.email as organizer_email
+        FROM events e
+        JOIN users u ON e.organizer_id = u.id
+        WHERE e.id = ?
+      `;
+      
+      const updatedEventResults = dbManager.query(updatedEventQuery, [id]);
+      
+      if (updatedEventResults.length === 0) {
+        return {
+          event: null,
+          errors: [{ message: 'Failed to update event', field: null }]
+        };
+      }
+      
+      const updatedEvent = updatedEventResults[0];
+      
+      // Count attendees
+      const attendeeCountQuery = `SELECT COUNT(*) as count FROM rsvps WHERE event_id = ?`;
+      const attendeeCount = dbManager.query(attendeeCountQuery, [id])[0].count;
+      
+      return {
+        event: {
+          id: updatedEvent.id.toString(),
+          title: updatedEvent.title,
+          description: updatedEvent.description,
+          date: updatedEvent.date,
+          location: updatedEvent.location,
+          maxAttendees: updatedEvent.max_attendees,
+          attendeeCount,
+          createdAt: updatedEvent.created_at,
+          updatedAt: updatedEvent.updated_at,
+          organizer: {
+            id: updatedEvent.organizer_id.toString(),
+            name: updatedEvent.organizer_name,
+            email: updatedEvent.organizer_email
+          }
+        },
+        errors: []
+      };
+      
+    } catch (error) {
+      console.error('Update event error:', error);
+      return {
+        event: null,
+        errors: [{ message: 'Failed to update event', field: null }]
+      };
+    }
+  },
+
+  deleteEvent: async (parent, args, context) => {
+    const { id } = args;
+    
+    try {
+      // Check if event exists
+      const eventQuery = `SELECT id, title, organizer_id FROM events WHERE id = ?`;
+      const events = dbManager.query(eventQuery, [id]);
+      
+      if (events.length === 0) {
+        return {
+          deletedEventId: null,
+          errors: [{ message: 'Event not found', field: null }]
+        };
+      }
+      
+      const event = events[0];
+      
+      // For now, we'll assume the user is authorized to delete
+      // In a real app, you'd check if the authenticated user is the organizer
+      
+      // Delete all RSVPs for this event first (foreign key constraint)
+      const deleteRsvpsQuery = `DELETE FROM rsvps WHERE event_id = ?`;
+      dbManager.run(deleteRsvpsQuery, [id]);
+      
+      // Delete the event
+      const deleteEventQuery = `DELETE FROM events WHERE id = ?`;
+      const result = dbManager.run(deleteEventQuery, [id]);
+      
+      if (result.changes === 0) {
+        return {
+          deletedEventId: null,
+          errors: [{ message: 'Failed to delete event', field: null }]
+        };
+      }
+      
+      return {
+        deletedEventId: id,
+        errors: []
+      };
+      
+    } catch (error) {
+      console.error('Delete event error:', error);
+      return {
+        deletedEventId: null,
+        errors: [{ message: 'Failed to delete event', field: null }]
+      };
+    }
+  },
+
   // RSVP mutations
   rsvpToEvent: async (parent, args) => {
     const { eventId, userId } = args;
