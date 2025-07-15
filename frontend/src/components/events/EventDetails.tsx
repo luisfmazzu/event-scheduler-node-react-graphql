@@ -7,6 +7,13 @@ import { RsvpButton } from '@/components/attendees/RsvpButton';
 import { LoginModal } from '@/components/auth/LoginModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { 
+  SUBSCRIPTION_QUERIES, 
+  subscribe, 
+  RsvpUpdate, 
+  EventUpdate, 
+  SubscriptionResponse 
+} from '@/lib/subscriptionClient';
 
 interface EventDetailsProps {
   event: {
@@ -41,6 +48,12 @@ export function EventDetails({ event }: EventDetailsProps) {
   const [attendees, setAttendees] = useState(event.attendees);
   const [optimisticUpdate, setOptimisticUpdate] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [realtimeUpdate, setRealtimeUpdate] = useState<{
+    message: string;
+    type: 'rsvp' | 'event';
+    action: string;
+    user?: string;
+  } | null>(null);
   
   // Update state when event prop changes
   useEffect(() => {
@@ -48,6 +61,99 @@ export function EventDetails({ event }: EventDetailsProps) {
     setAttendeeCount(event.attendeeCount);
     setAttendees(event.attendees);
   }, [event]);
+
+  // Subscribe to real-time RSVP updates for this event
+  useEffect(() => {
+    const unsubscribeRsvp = subscribe<SubscriptionResponse<{ rsvpUpdated: RsvpUpdate }>>(
+      {
+        query: SUBSCRIPTION_QUERIES.RSVP_UPDATED,
+        variables: { eventId: event.id }
+      },
+      (response) => {
+        const { rsvpUpdated } = response.data;
+        
+        // Update attendee count
+        setAttendeeCount(rsvpUpdated.event.attendeeCount);
+        
+        // Show real-time update notification
+        setRealtimeUpdate({
+          message: `${rsvpUpdated.user.name} ${rsvpUpdated.action === 'JOINED' ? 'joined' : 'left'} the event`,
+          type: 'rsvp',
+          action: rsvpUpdated.action,
+          user: rsvpUpdated.user.name
+        });
+
+        // Update attendees list
+        if (rsvpUpdated.action === 'JOINED') {
+          setAttendees(prev => {
+            // Avoid duplicates
+            if (prev.some(attendee => attendee.id === rsvpUpdated.user.id)) {
+              return prev;
+            }
+            return [...prev, rsvpUpdated.user];
+          });
+        } else {
+          setAttendees(prev => prev.filter(attendee => attendee.id !== rsvpUpdated.user.id));
+        }
+
+        // Update user's attendance status if it's their own action
+        if (user && rsvpUpdated.user.id === user.id) {
+          setIsAttending(rsvpUpdated.action === 'JOINED');
+        }
+
+        // Clear notification after 5 seconds
+        setTimeout(() => setRealtimeUpdate(null), 5000);
+      },
+      (error) => {
+        console.error('RSVP subscription error:', error);
+      }
+    );
+
+    // Subscribe to event updates for this specific event
+    const unsubscribeEvent = subscribe<SubscriptionResponse<{ eventUpdated: EventUpdate }>>(
+      {
+        query: SUBSCRIPTION_QUERIES.EVENT_UPDATED,
+        variables: { eventId: event.id }
+      },
+      (response) => {
+        const { eventUpdated } = response.data;
+        
+        if (eventUpdated.action === 'DELETED') {
+          // Show deletion notification and redirect
+          setRealtimeUpdate({
+            message: 'This event has been deleted by the organizer',
+            type: 'event',
+            action: 'DELETED'
+          });
+          
+          setTimeout(() => {
+            router.push('/');
+          }, 3000);
+        } else if (eventUpdated.action === 'UPDATED') {
+          // Show update notification
+          setRealtimeUpdate({
+            message: 'Event details have been updated',
+            type: 'event',
+            action: 'UPDATED'
+          });
+          
+          // Refresh the page to get updated event data
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        }
+      },
+      (error) => {
+        console.error('Event subscription error:', error);
+      }
+    );
+
+    // Cleanup subscriptions
+    return () => {
+      unsubscribeRsvp();
+      unsubscribeEvent();
+    };
+  }, [event.id, user?.id, router]);
   
   const eventDate = new Date(event.date);
   const createdDate = new Date(event.createdAt);
@@ -130,8 +236,7 @@ export function EventDetails({ event }: EventDetailsProps) {
         throw new Error(result.errors[0].message);
       }
 
-      // Redirect to events list after successful deletion
-      router.push('/');
+      // The subscription will handle the redirect, no need to do it manually
       
     } catch (error) {
       console.error('Delete error:', error);
@@ -143,6 +248,42 @@ export function EventDetails({ event }: EventDetailsProps) {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Real-time update notifications */}
+      {realtimeUpdate && (
+        <div className={`border rounded-lg p-4 mb-4 ${
+          realtimeUpdate.type === 'rsvp' 
+            ? realtimeUpdate.action === 'JOINED' 
+              ? 'bg-green-50 border-green-200' 
+              : 'bg-blue-50 border-blue-200'
+            : realtimeUpdate.action === 'DELETED'
+              ? 'bg-red-50 border-red-200'
+              : 'bg-yellow-50 border-yellow-200'
+        }`}>
+          <div className="flex items-center">
+            <div className={`w-2 h-2 rounded-full mr-3 ${
+              realtimeUpdate.type === 'rsvp'
+                ? realtimeUpdate.action === 'JOINED'
+                  ? 'bg-green-500 animate-pulse'
+                  : 'bg-blue-500 animate-pulse'
+                : realtimeUpdate.action === 'DELETED'
+                  ? 'bg-red-500 animate-pulse'
+                  : 'bg-yellow-500 animate-pulse'
+            }`}></div>
+            <p className={`text-sm font-medium ${
+              realtimeUpdate.type === 'rsvp'
+                ? realtimeUpdate.action === 'JOINED'
+                  ? 'text-green-800'
+                  : 'text-blue-800'
+                : realtimeUpdate.action === 'DELETED'
+                  ? 'text-red-800'
+                  : 'text-yellow-800'
+            }`}>
+              🔴 LIVE: {realtimeUpdate.message}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Optimistic update indicator */}
       {optimisticUpdate && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -170,7 +311,7 @@ export function EventDetails({ event }: EventDetailsProps) {
                 </div>
                 <div className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  <span className={optimisticUpdate ? "text-blue-600 font-medium" : ""}>
+                  <span className={optimisticUpdate || realtimeUpdate?.type === 'rsvp' ? "text-blue-600 font-medium transition-colors duration-300" : ""}>
                     {attendeeCount} attending
                   </span>
                   {event.maxAttendees && (
@@ -210,6 +351,7 @@ export function EventDetails({ event }: EventDetailsProps) {
             )}
           </div>
         </CardHeader>
+        
         <CardContent>
           <div className="prose max-w-none">
             <p className="text-gray-700 leading-relaxed">{event.description}</p>
@@ -233,7 +375,8 @@ export function EventDetails({ event }: EventDetailsProps) {
                   </p>
                 )}
               </div>
-              <div className="flex gap-2">
+              
+              <div className="flex gap-3">
                 {!isPastEvent && !isOrganizer && (
                   <>
                     {isAuthenticated && user ? (
@@ -291,7 +434,7 @@ export function EventDetails({ event }: EventDetailsProps) {
         <CardHeader>
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
             <Users className="w-5 h-5" />
-            <span className={optimisticUpdate ? "text-blue-600" : ""}>
+            <span className={optimisticUpdate || realtimeUpdate?.type === 'rsvp' ? "text-blue-600 transition-colors duration-300" : ""}>
               Attendees ({attendeeCount})
             </span>
           </CardTitle>
