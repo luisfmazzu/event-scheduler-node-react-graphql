@@ -11,6 +11,7 @@ const { createHandler } = require('graphql-http/lib/use/express');
 const dbManager = require('./database');
 const migrationRunner = require('./migrations/migrator');
 const { typeDefs, rootValue, resolvers } = require('./schema');
+const { createLoaders } = require('./loaders');
 require('dotenv').config();
 
 // Create Express app
@@ -63,7 +64,8 @@ app.use('/graphql', createHandler({
       // Add request context here (user authentication, etc.)
       req: req,
       db: dbManager,
-      token: token
+      token: token,
+      loaders: createLoaders()
     };
   }
 }));

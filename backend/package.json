@@ -24,6 +24,7 @@
   "dependencies": {
     "better-sqlite3": "^11.5.0",
     "cors": "^2.8.5",
+    "dataloader": "^2.2.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "graphql": "^16.10.0",
