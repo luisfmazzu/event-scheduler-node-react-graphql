@@ -258,28 +258,28 @@ export default function HomePage() {
       )}
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2 sm:mb-4">
             Upcoming Events
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto px-4">
             Discover and join exciting events in your community. 
             {isConnected && (
-              <span className="text-green-600 ml-2">📡 Live updates enabled</span>
+              <span className="text-green-600 ml-2 block sm:inline">📡 Live updates enabled</span>
             )}
           </p>
         </div>
 
         {/* Search and Controls */}
-        <Card className="mb-8">
+        <Card className="mb-6 sm:mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Browse Events</span>
-              <div className="flex items-center gap-2">
+            <CardTitle className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
+              <span className="text-lg sm:text-xl">Browse Events</span>
+              <div className="flex items-center justify-between sm:justify-end gap-2">
                 <span className="text-sm text-gray-500">
-                  {filteredEvents.length} events
+                  {filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}
                 </span>
                 <Button
                   variant="outline"
@@ -289,7 +289,7 @@ export default function HomePage() {
                   className="flex items-center gap-2"
                 >
                   <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  Refresh
+                  <span className="hidden sm:inline">Refresh</span>
                 </Button>
               </div>
             </CardTitle>
@@ -299,7 +299,7 @@ export default function HomePage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <Input
                 type="text"
-                placeholder="Search events by title, description, or location..."
+                placeholder="Search events..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"

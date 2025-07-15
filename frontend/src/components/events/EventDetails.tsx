@@ -297,20 +297,20 @@ export function EventDetails({ event }: EventDetailsProps) {
       {/* Main Event Information */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-start">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
             <div className="flex-1">
-              <CardTitle className="text-3xl font-bold text-gray-900">{event.title}</CardTitle>
-              <div className="flex flex-wrap gap-4 text-sm text-gray-600 mt-4">
+              <CardTitle className="text-2xl lg:text-3xl font-bold text-gray-900">{event.title}</CardTitle>
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-4 text-sm text-gray-600 mt-4">
                 <div className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  <span>{eventDate.toLocaleDateString()} at {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <Calendar className="w-4 h-4 flex-shrink-0" />
+                  <span className="break-words">{eventDate.toLocaleDateString()} at {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <MapPin className="w-4 h-4" />
-                  <span>{event.location}</span>
+                  <MapPin className="w-4 h-4 flex-shrink-0" />
+                  <span className="break-words">{event.location}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <Users className="w-4 h-4" />
+                  <Users className="w-4 h-4 flex-shrink-0" />
                   <span className={optimisticUpdate || realtimeUpdate?.type === 'rsvp' ? "text-blue-600 font-medium transition-colors duration-300" : ""}>
                     {attendeeCount} attending
                   </span>
@@ -319,7 +319,7 @@ export function EventDetails({ event }: EventDetailsProps) {
                   )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-4 h-4 flex-shrink-0" />
                   <span>Created {createdDate.toLocaleDateString()}</span>
                 </div>
               </div>
@@ -327,25 +327,25 @@ export function EventDetails({ event }: EventDetailsProps) {
             
             {/* Organizer Actions */}
             {isOrganizer && (
-              <div className="flex gap-2 ml-4">
+              <div className="flex gap-2 w-full lg:w-auto lg:ml-4">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleEdit}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 flex-1 lg:flex-none"
                 >
                   <Edit className="w-4 h-4" />
-                  Edit
+                  <span className="hidden sm:inline">Edit</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleDelete}
                   disabled={isDeleting}
-                  className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 flex-1 lg:flex-none"
                 >
                   <Trash2 className="w-4 h-4" />
-                  {isDeleting ? 'Deleting...' : 'Delete'}
+                  <span className="hidden sm:inline">{isDeleting ? 'Deleting...' : 'Delete'}</span>
                 </Button>
               </div>
             )}
@@ -354,12 +354,12 @@ export function EventDetails({ event }: EventDetailsProps) {
         
         <CardContent>
           <div className="prose max-w-none">
-            <p className="text-gray-700 leading-relaxed">{event.description}</p>
+            <p className="text-gray-700 leading-relaxed break-words">{event.description}</p>
           </div>
           
           {/* Availability Status */}
           <div className="mt-6 p-4 rounded-lg bg-gray-50">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 {availableSpots !== null && (
                   <p className={`font-medium ${isEventFull ? 'text-red-600' : 'text-green-600'}`}>
@@ -376,7 +376,7 @@ export function EventDetails({ event }: EventDetailsProps) {
                 )}
               </div>
               
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                 {!isPastEvent && !isOrganizer && (
                   <>
                     {isAuthenticated && user ? (
@@ -392,14 +392,14 @@ export function EventDetails({ event }: EventDetailsProps) {
                         variant="default"
                         onClick={handleRsvpClick}
                         disabled={isEventFull}
-                        className={isEventFull ? "cursor-not-allowed" : ""}
+                        className={`w-full sm:w-auto ${isEventFull ? "cursor-not-allowed" : ""}`}
                       >
                         {isEventFull ? 'Event Full' : 'Sign In to RSVP'}
                       </Button>
                     )}
                   </>
                 )}
-                <Button variant="outline">
+                <Button variant="outline" className="w-full sm:w-auto">
                   Share Event
                 </Button>
               </div>
@@ -411,19 +411,19 @@ export function EventDetails({ event }: EventDetailsProps) {
       {/* Organizer Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-semibold flex items-center gap-2">
+          <CardTitle className="text-lg lg:text-xl font-semibold flex items-center gap-2">
             <User className="w-5 h-5" />
             Event Organizer
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
               <User className="w-6 h-6 text-blue-600" />
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">{event.organizer.name}</h3>
-              <p className="text-gray-600">{event.organizer.email}</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-gray-900 break-words">{event.organizer.name}</h3>
+              <p className="text-gray-600 break-all text-sm lg:text-base">{event.organizer.email}</p>
             </div>
           </div>
         </CardContent>
@@ -432,7 +432,7 @@ export function EventDetails({ event }: EventDetailsProps) {
       {/* Attendees Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl font-semibold flex items-center gap-2">
+          <CardTitle className="text-lg lg:text-xl font-semibold flex items-center gap-2">
             <Users className="w-5 h-5" />
             <span className={optimisticUpdate || realtimeUpdate?.type === 'rsvp' ? "text-blue-600 transition-colors duration-300" : ""}>
               Attendees ({attendeeCount})
