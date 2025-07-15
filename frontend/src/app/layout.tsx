@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import React from 'react';
-import { RelayProvider } from '../relay/RelayProvider';
+import { AuthProvider } from '../contexts/AuthContext';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,9 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <RelayProvider>
+        <AuthProvider>
           {children}
-        </RelayProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AttendeeList } from '@/components/attendees/AttendeeList';
 import { RsvpButton } from '@/components/attendees/RsvpButton';
+import { LoginModal } from '@/components/auth/LoginModal';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EventDetailsProps {
   event: {
@@ -30,6 +32,8 @@ interface EventDetailsProps {
 }
 
 export function EventDetails({ event }: EventDetailsProps) {
+  const { user, isAuthenticated } = useAuth();
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAttending, setIsAttending] = useState(event.isUserAttending || false);
   const [attendeeCount, setAttendeeCount] = useState(event.attendeeCount);
   const [attendees, setAttendees] = useState(event.attendees);
@@ -48,30 +52,26 @@ export function EventDetails({ event }: EventDetailsProps) {
   const isEventFull = availableSpots !== null && availableSpots <= 0;
   const isPastEvent = eventDate < new Date();
 
-  // Mock user ID for testing (in real app, this would come from auth context)
-  const currentUserId = "1";
-
   const handleRsvpChange = (newIsAttending: boolean, eventId: string) => {
     setOptimisticUpdate(true);
     setIsAttending(newIsAttending);
     setAttendeeCount(prev => newIsAttending ? prev + 1 : prev - 1);
 
     // Optimistically update attendees list
-    if (newIsAttending) {
-      // Add current user to attendees list (would typically come from user context)
-      const currentUser = {
-        id: currentUserId,
-        name: "Current User", // In real app, this would come from auth context
-        email: "user@example.com" // In real app, this would come from auth context
-      };
-      setAttendees(prev => [...prev, currentUser]);
-    } else {
-      // Remove current user from attendees list
-      setAttendees(prev => prev.filter(attendee => attendee.id !== currentUserId));
+    if (newIsAttending && user) {
+      setAttendees(prev => [...prev, user]);
+    } else if (!newIsAttending && user) {
+      setAttendees(prev => prev.filter(attendee => attendee.id !== user.id));
     }
 
     // Clear optimistic update flag after a short delay
     setTimeout(() => setOptimisticUpdate(false), 3000);
+  };
+
+  const handleRsvpClick = () => {
+    if (!isAuthenticated) {
+      setIsLoginModalOpen(true);
+    }
   };
 
   return (
@@ -131,7 +131,7 @@ export function EventDetails({ event }: EventDetailsProps) {
                 {isPastEvent && (
                   <p className="text-gray-500 font-medium">This event has ended</p>
                 )}
-                {isAttending && !isPastEvent && (
+                {isAttending && !isPastEvent && isAuthenticated && (
                   <p className={`font-medium ${optimisticUpdate ? 'text-blue-600' : 'text-green-600'}`}>
                     {optimisticUpdate ? 'Updating registration...' : 'You are registered for this event'}
                   </p>
@@ -139,13 +139,26 @@ export function EventDetails({ event }: EventDetailsProps) {
               </div>
               <div className="flex gap-2">
                 {!isPastEvent && (
-                  <RsvpButton
-                    eventId={event.id}
-                    userId={currentUserId}
-                    isAttending={isAttending}
-                    isEventFull={isEventFull}
-                    onRsvpChange={handleRsvpChange}
-                  />
+                  <>
+                    {isAuthenticated && user ? (
+                      <RsvpButton
+                        eventId={event.id}
+                        userId={user.id}
+                        isAttending={isAttending}
+                        isEventFull={isEventFull}
+                        onRsvpChange={handleRsvpChange}
+                      />
+                    ) : (
+                      <Button 
+                        variant="default"
+                        onClick={handleRsvpClick}
+                        disabled={isEventFull}
+                        className={isEventFull ? "cursor-not-allowed" : ""}
+                      >
+                        {isEventFull ? 'Event Full' : 'Sign In to RSVP'}
+                      </Button>
+                    )}
+                  </>
                 )}
                 <Button variant="outline">
                   Share Event
@@ -195,6 +208,11 @@ export function EventDetails({ event }: EventDetailsProps) {
           />
         </CardContent>
       </Card>
+
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+      />
     </div>
   );
 } 

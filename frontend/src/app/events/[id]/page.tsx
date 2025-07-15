@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { EventDetails } from '@/components/events/EventDetails';
 import { Button } from '@/components/ui/Button';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EventData {
   id: string;
@@ -31,14 +32,12 @@ interface EventData {
 export default function EventDetailsPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, isAuthenticated } = useAuth();
   const eventId = params.id as string;
   
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Mock user ID for testing (in real app, this would come from auth context)
-  const currentUserId = "1";
 
   useEffect(() => {
     async function fetchEvent() {
@@ -48,38 +47,69 @@ export default function EventDetailsPage() {
         setLoading(true);
         setError(null);
         
+        const query = isAuthenticated && user
+          ? `
+            query GetEventDetails($id: ID!, $userId: ID!) {
+              event(id: $id) {
+                id
+                title
+                description
+                date
+                location
+                maxAttendees
+                attendeeCount
+                createdAt
+                isUserAttending(userId: $userId)
+                organizer {
+                  id
+                  name
+                  email
+                }
+                attendees {
+                  id
+                  name
+                  email
+                }
+              }
+            }
+          `
+          : `
+            query GetEventDetails($id: ID!) {
+              event(id: $id) {
+                id
+                title
+                description
+                date
+                location
+                maxAttendees
+                attendeeCount
+                createdAt
+                organizer {
+                  id
+                  name
+                  email
+                }
+                attendees {
+                  id
+                  name
+                  email
+                }
+              }
+            }
+          `;
+
+        const variables = isAuthenticated && user
+          ? { id: eventId, userId: user.id }
+          : { id: eventId };
+
         const response = await fetch('http://localhost:4000/graphql', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            query: `
-              query GetEventDetails($id: ID!, $userId: ID!) {
-                event(id: $id) {
-                  id
-                  title
-                  description
-                  date
-                  location
-                  maxAttendees
-                  attendeeCount
-                  createdAt
-                  isUserAttending(userId: $userId)
-                  organizer {
-                    id
-                    name
-                    email
-                  }
-                  attendees {
-                    id
-                    name
-                    email
-                  }
-                }
-              }
-            `,
-            variables: { id: eventId, userId: currentUserId },
+            query,
+            variables,
           }),
         });
 
@@ -106,7 +136,7 @@ export default function EventDetailsPage() {
     }
 
     fetchEvent();
-  }, [eventId, currentUserId]);
+  }, [eventId, user, isAuthenticated]);
 
   if (loading) {
     return (

@@ -12,7 +12,8 @@ import { EventList } from '@/components/events/EventList';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import { Search, Plus, Calendar } from 'lucide-react';
+import { Header } from '@/components/layout/Header';
+import { Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Event {
@@ -113,21 +114,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <Calendar className="h-8 w-8 text-blue-600 mr-2" />
-              <h1 className="text-2xl font-bold text-gray-900">Event Scheduler</h1>
-            </div>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Create Event
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
