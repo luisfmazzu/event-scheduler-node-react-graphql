@@ -5,7 +5,7 @@
  */
 
 const { WebSocketServer } = require('ws');
-const { useServer } = require('graphql-ws/lib/use/ws');
+const { useServer } = require('graphql-ws/use/ws');
 const jwt = require('jsonwebtoken');
 const schema = require('./schema');
 const dbManager = require('./database');

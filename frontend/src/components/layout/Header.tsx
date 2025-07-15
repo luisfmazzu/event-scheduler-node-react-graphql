@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { LoginModal } from '@/components/auth/LoginModal';
+import { ConnectionStatus } from '@/components/ui/ConnectionStatus';
 import { useAuth } from '@/contexts/AuthContext';
 import { Calendar, Plus, User, LogOut, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -34,6 +35,11 @@ export function Header({ showCreateButton = true }: HeaderProps) {
             </div>
             
             <div className="flex items-center gap-4">
+              {/* Connection Status - Always visible when authenticated */}
+              {isAuthenticated && (
+                <ConnectionStatus compact className="hidden sm:flex" />
+              )}
+              
               {isAuthenticated && showCreateButton && (
                 <Link href="/events/create">
                   <Button className="flex items-center gap-2">

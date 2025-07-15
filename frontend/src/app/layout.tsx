@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import React from 'react';
 import { AuthProvider } from '../contexts/AuthContext';
+import { ConnectionStatusToast } from '../components/ui/ConnectionStatus';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           {children}
+          <ConnectionStatusToast />
         </AuthProvider>
       </body>
     </html>
