@@ -1,74 +1,58 @@
 /**
  * GraphQL Type Definitions
  * 
- * Defines the GraphQL schema types for the Event Scheduler application
- * Based on the PRD specification for Event and User entities
+ * Defines the GraphQL schema for the Event Scheduler application
+ * Includes types for Events, Users, and various payloads
  */
 
-const { buildSchema } = require('graphql');
+const typeDefs = `
+  # Custom scalar types
+  scalar DateTime
+  scalar Email
+  scalar URL
+  scalar PositiveInt
 
-const typeDefs = buildSchema(`
-  # User type representing registered users
+  # User type
   type User {
     id: ID!
     name: String!
-    email: String!
-    createdAt: String!
-    updatedAt: String!
-    # Organized events
+    email: Email!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    
+    # User's created events
     organizedEvents: [Event!]!
-    # Events user has RSVP'd to
+    
+    # User's attended events
     attendingEvents: [Event!]!
   }
-
-  # Event type representing scheduled events
+  
+  # Event type
   type Event {
     id: ID!
     title: String!
     description: String!
-    date: String!
+    date: DateTime!
     location: String!
-    maxAttendees: Int
-    createdAt: String!
-    updatedAt: String!
-    # Relationships
-    organizer: User!
-    attendees: [User!]!
-    # Computed fields
+    maxAttendees: PositiveInt
     attendeeCount: Int!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+    
+    # Event organizer
+    organizer: User!
+    
+    # Event attendees
+    attendees: [User!]!
+    
+    # Check if specific user is attending
     isUserAttending(userId: ID!): Boolean!
+    
+    # Available spots (calculated field)
     availableSpots: Int
   }
-
-  # Server status types for monitoring
-  type ServerStatus {
-    message: String!
-    timestamp: String!
-    version: String!
-  }
-
-  type DatabaseStatus {
-    connected: Boolean!
-    healthy: Boolean!
-    path: String!
-    tableCount: Int
-    size: Float
-    readonly: Boolean
-    inTransaction: Boolean
-    error: String
-  }
-
-  type MigrationStatus {
-    applied: [String!]!
-    available: [String!]!
-    pending: [String!]!
-    total: Int!
-    appliedCount: Int!
-    pendingCount: Int!
-    error: String
-  }
-
-  # Authentication types
+  
+  # Authentication payload
   type AuthPayload {
     success: Boolean!
     message: String!
@@ -76,13 +60,8 @@ const typeDefs = buildSchema(`
     token: String
     errors: [String!]
   }
-
-  type LoginInput {
-    email: String!
-    name: String!
-  }
-
-  # RSVP result types
+  
+  # RSVP payload
   type RsvpPayload {
     success: Boolean!
     message: String!
@@ -90,7 +69,8 @@ const typeDefs = buildSchema(`
     user: User
     errors: [String!]
   }
-
+  
+  # Cancel RSVP payload
   type CancelRsvpPayload {
     success: Boolean!
     message: String!
@@ -98,43 +78,43 @@ const typeDefs = buildSchema(`
     user: User
     errors: [String!]
   }
-
+  
   # Error type for mutations
   type Error {
     message: String!
     field: String
   }
-
+  
   # Create event input
   input CreateEventInput {
     title: String!
     description: String!
-    date: String!
+    date: DateTime!
     location: String!
-    maxAttendees: Int
+    maxAttendees: PositiveInt
   }
-
+  
   # Update event input
   input UpdateEventInput {
     title: String
     description: String
-    date: String
+    date: DateTime
     location: String
-    maxAttendees: Int
+    maxAttendees: PositiveInt
   }
-
+  
   # Create event payload
   type CreateEventPayload {
     event: Event
     errors: [Error!]
   }
-
+  
   # Update event payload
   type UpdateEventPayload {
     event: Event
     errors: [Error!]
   }
-
+  
   # Delete event payload
   type DeleteEventPayload {
     deletedEventId: ID!
@@ -143,27 +123,29 @@ const typeDefs = buildSchema(`
 
   # Query type - read operations
   type Query {
-    # System status queries
-    hello: String
-    status: ServerStatus
-    dbStatus: DatabaseStatus
-    migrationStatus: MigrationStatus
-    
-    # Event queries
+    # Get all events
     events: [Event!]!
-    event(id: ID!): Event
-    upcomingEvents: [Event!]!
     
-    # User queries
-    users: [User!]!
-    user(id: ID!): User
+    # Get single event by ID
+    event(id: ID!): Event
+    
+    # Get current user
     me: User
+    
+    # Get user by ID
+    user(id: ID!): User
+    
+    # Get upcoming events
+    upcomingEvents(limit: Int): [Event!]!
+    
+    # Get events by organizer
+    eventsByOrganizer(organizerId: ID!): [Event!]!
   }
 
   # Mutation type - write operations
   type Mutation {
     # Authentication
-    login(email: String!, name: String!): AuthPayload!
+    login(email: Email!, name: String!): AuthPayload!
     logout: AuthPayload!
     
     # Event management
@@ -175,6 +157,6 @@ const typeDefs = buildSchema(`
     rsvpToEvent(eventId: ID!, userId: ID!): RsvpPayload!
     cancelRsvp(eventId: ID!, userId: ID!): CancelRsvpPayload!
   }
-`);
+`;
 
 module.exports = typeDefs; 

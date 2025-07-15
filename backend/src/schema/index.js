@@ -1,31 +1,32 @@
 /**
  * GraphQL Schema
  * 
- * Combines type definitions and resolvers into a complete GraphQL schema
- * for the Event Scheduler application
+ * Combines type definitions and resolvers to create the complete GraphQL schema
  */
 
+const { makeExecutableSchema } = require('@graphql-tools/schema');
+const typeDefs = require('./typeDefs');
 const Query = require('./resolvers/Query');
+const Mutation = require('./resolvers/Mutation');
 const Event = require('./resolvers/Event');
 const User = require('./resolvers/User');
-const Mutation = require('./resolvers/Mutation');
-const typeDefs = require('./typeDefs');
+const { DateTime, Email, URL, PositiveInt } = require('./scalars');
 
-// Combine all resolvers into root value structure
-const rootValue = {
-  // Query resolvers
-  ...Query,
-  // Mutation resolvers
-  ...Mutation
-};
-
-module.exports = {
+const schema = makeExecutableSchema({
   typeDefs,
-  rootValue,
   resolvers: {
+    // Custom scalar resolvers
+    DateTime,
+    Email,
+    URL,
+    PositiveInt,
+    
+    // Type resolvers
     Query,
+    Mutation,
     Event,
     User,
-    Mutation
-  }
-}; 
+  },
+});
+
+module.exports = schema; 
