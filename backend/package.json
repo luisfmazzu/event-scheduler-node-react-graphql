@@ -11,7 +11,12 @@
     "migrate:status": "node -e \"console.log(JSON.stringify(require('./src/migrations/migrator').getMigrationStatus(), null, 2))\"",
     "migrate:reset": "node -e \"require('./src/migrations/migrator').resetDatabase()\"",
     "db:init": "node -e \"require('./src/database').connect()\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:integration": "jest --testPathPattern=integration",
+    "test:unit": "jest --testPathPattern=unit",
+    "test:resolvers": "jest --testPathPattern=resolvers"
   },
   "keywords": [
     "graphql",
@@ -38,9 +43,29 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "@types/jest": "^29.5.8",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3",
+    "@graphql-tools/mock": "^9.0.1",
+    "graphql-request": "^6.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "roots": ["<rootDir>/src", "<rootDir>/tests"],
+    "testMatch": [
+      "**/__tests__/**/*.js",
+      "**/?(*.)+(spec|test).js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js",
+      "!src/database.js"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"]
   }
 }
