@@ -2,11 +2,12 @@
  * EventList Component
  * 
  * Displays a list of events using the EventCard component.
- * Provides a responsive grid layout for event cards.
+ * Provides a responsive grid layout for event cards with enhanced loading states.
  */
 
 import React from 'react';
 import { EventCard } from './EventCard';
+import { EventListSkeleton } from '@/components/ui/Skeleton';
 
 interface Event {
   id: string;
@@ -38,15 +39,7 @@ export const EventList: React.FC<EventListProps> = ({
   emptyMessage = 'No events found.',
 }) => {
   if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(6)].map((_, index) => (
-          <div key={index} className="animate-pulse">
-            <div className="bg-gray-200 rounded-xl h-80 w-full"></div>
-          </div>
-        ))}
-      </div>
-    );
+    return <EventListSkeleton count={6} />;
   }
 
   if (events.length === 0) {
