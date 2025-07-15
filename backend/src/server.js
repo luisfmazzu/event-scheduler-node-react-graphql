@@ -1,21 +1,24 @@
 /**
  * Event Scheduler GraphQL Server
  * 
- * Express.js server with GraphQL endpoint for the Event Scheduler application.
- * Provides a GraphQL API for event management and user interactions.
+ * Express.js server with GraphQL endpoint and WebSocket subscriptions
+ * for the Event Scheduler application.
  */
 
 const express = require('express');
+const http = require('http');
 const cors = require('cors');
 const { createHandler } = require('graphql-http/lib/use/express');
 const dbManager = require('./database');
 const migrationRunner = require('./migrations/migrator');
-const { typeDefs, rootValue, resolvers } = require('./schema');
+const schema = require('./schema');
 const { createLoaders } = require('./loaders');
+const { createSubscriptionServer } = require('./subscriptionServer');
 require('dotenv').config();
 
-// Create Express app
+// Create Express app and HTTP server
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 4000;
 
 // Middleware
@@ -26,42 +29,20 @@ app.use(cors({
 
 app.use(express.json());
 
-// GraphQL endpoint with schema, root resolvers, and type resolvers
+// GraphQL HTTP endpoint
 app.use('/graphql', createHandler({
-  schema: typeDefs,
-  rootValue: rootValue,
-  typeResolver: (value, context, info, abstractType) => {
-    // Handle type resolution for interfaces/unions if needed
-    return null;
-  },
-  fieldResolver: (source, args, context, info) => {
-    // Handle field resolution for Event and User types
-    const parentType = info.parentType.name;
-    const fieldName = info.fieldName;
-    
-    if (parentType === 'Event' && resolvers.Event[fieldName]) {
-      return resolvers.Event[fieldName](source, args, context, info);
-    }
-    
-    if (parentType === 'User' && resolvers.User[fieldName]) {
-      return resolvers.User[fieldName](source, args, context, info);
-    }
-    
-    // Default field resolution
-    return source[fieldName];
-  },
-  graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
+  schema,
+  graphiql: process.env.NODE_ENV !== 'production',
   context: (req) => {
     // Extract JWT token from Authorization header
     let token = null;
     const authHeader = req.headers.authorization;
     
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      token = authHeader.substring(7);
     }
     
     return {
-      // Add request context here (user authentication, etc.)
       req: req,
       db: dbManager,
       token: token,
@@ -104,13 +85,14 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       graphql: '/graphql',
-      health: '/health'
+      health: '/health',
+      subscriptions: '/graphql-ws'
     },
     features: {
       graphiql: process.env.NODE_ENV !== 'production' ? '/graphql' : null,
       queries: ['events', 'event', 'upcomingEvents', 'users', 'user'],
-      mutations: ['Coming in Phase 2'],
-      subscriptions: ['Coming in Phase 3']
+      mutations: ['login', 'createEvent', 'updateEvent', 'deleteEvent', 'rsvpToEvent', 'cancelRsvp'],
+      subscriptions: ['rsvpUpdated', 'eventUpdated', 'allRsvpUpdates', 'allEventUpdates']
     },
     database: {
       connected: dbManager.isConnected,
@@ -142,10 +124,14 @@ async function startServer() {
     // Run database migrations
     await migrationRunner.runMigrations();
     
-    // Start server
-    app.listen(PORT, () => {
+    // Create subscription server
+    const { wsServer, serverCleanup } = createSubscriptionServer(server);
+    
+    // Start HTTP server
+    server.listen(PORT, () => {
       console.log(`🚀 Event Scheduler GraphQL API running on port ${PORT}`);
       console.log(`📊 GraphQL endpoint: http://localhost:${PORT}/graphql`);
+      console.log(`🔗 WebSocket subscriptions: ws://localhost:${PORT}/graphql-ws`);
       console.log(`🏥 Health check: http://localhost:${PORT}/health`);
       
       // Show migration status
@@ -156,28 +142,38 @@ async function startServer() {
         console.log(`🔍 GraphiQL interface: http://localhost:${PORT}/graphql`);
       }
       
-      // Show available queries
+      // Show available operations
       console.log(`📝 Available queries: events, event, upcomingEvents, users, user`);
+      console.log(`✏️  Available mutations: login, createEvent, updateEvent, deleteEvent, rsvpToEvent, cancelRsvp`);
+      console.log(`📺 Available subscriptions: rsvpUpdated, eventUpdated, allRsvpUpdates, allEventUpdates`);
       console.log(`🎯 Try a query: { events { id title date organizer { name } } }`);
     });
+
+    // Graceful shutdown handler
+    const gracefulShutdown = async (signal) => {
+      console.log(`${signal} received. Shutting down gracefully...`);
+      
+      // Close subscription server
+      await serverCleanup.dispose();
+      
+      // Close HTTP server
+      server.close(async () => {
+        // Close database connection
+        await dbManager.close();
+        console.log('Server shut down complete.');
+        process.exit(0);
+      });
+    };
+
+    // Register shutdown handlers
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
   } catch (error) {
     console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  await dbManager.close();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  await dbManager.close();
-  process.exit(0);
-});
 
 // Start the server
 startServer(); 

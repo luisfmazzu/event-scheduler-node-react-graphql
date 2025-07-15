@@ -10,6 +10,7 @@ const Query = require('./resolvers/Query');
 const Mutation = require('./resolvers/Mutation');
 const Event = require('./resolvers/Event');
 const User = require('./resolvers/User');
+const { Subscription } = require('./resolvers/Subscription');
 const { DateTime, Email, URL, PositiveInt } = require('./scalars');
 
 const schema = makeExecutableSchema({
@@ -24,6 +25,7 @@ const schema = makeExecutableSchema({
     // Type resolvers
     Query,
     Mutation,
+    Subscription,
     Event,
     User,
   },

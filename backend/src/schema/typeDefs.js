@@ -121,6 +121,34 @@ const typeDefs = `
     errors: [Error!]
   }
 
+  # RSVP update for subscriptions
+  type RsvpUpdate {
+    event: Event!
+    user: User!
+    action: RsvpAction!
+    timestamp: DateTime!
+  }
+
+  # Event update for subscriptions
+  type EventUpdate {
+    event: Event!
+    action: EventAction!
+    timestamp: DateTime!
+  }
+
+  # RSVP action enum
+  enum RsvpAction {
+    JOINED
+    LEFT
+  }
+
+  # Event action enum
+  enum EventAction {
+    CREATED
+    UPDATED
+    DELETED
+  }
+
   # Query type - read operations
   type Query {
     # Get all events
@@ -156,6 +184,24 @@ const typeDefs = `
     # RSVP management
     rsvpToEvent(eventId: ID!, userId: ID!): RsvpPayload!
     cancelRsvp(eventId: ID!, userId: ID!): CancelRsvpPayload!
+  }
+
+  # Subscription type - real-time updates
+  type Subscription {
+    # Subscribe to RSVP updates for a specific event
+    rsvpUpdated(eventId: ID!): RsvpUpdate!
+    
+    # Subscribe to all RSVP updates
+    allRsvpUpdates: RsvpUpdate!
+    
+    # Subscribe to event updates (created, updated, deleted)
+    eventUpdated(eventId: ID!): EventUpdate!
+    
+    # Subscribe to all event updates
+    allEventUpdates: EventUpdate!
+    
+    # Subscribe to events a user is attending
+    userEventUpdates(userId: ID!): EventUpdate!
   }
 `;
 
