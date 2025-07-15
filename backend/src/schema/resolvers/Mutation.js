@@ -2,12 +2,88 @@
  * Mutation Resolvers
  * 
  * Implements GraphQL mutation resolvers for the Event Scheduler application
- * Handles RSVP operations and event management
+ * Handles RSVP operations and authentication
  */
 
 const dbManager = require('../../database');
+const jwt = require('jsonwebtoken');
+
+// Simple JWT secret for demo purposes (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-here';
 
 const Mutation = {
+  // Authentication mutations
+  login: async (parent, args) => {
+    const { email, name } = args;
+    
+    try {
+      // Check if user already exists
+      const existingUserQuery = `SELECT id, name, email FROM users WHERE email = ?`;
+      const existingUsers = dbManager.query(existingUserQuery, [email]);
+      
+      let user;
+      
+      if (existingUsers.length > 0) {
+        // User exists, return existing user
+        user = existingUsers[0];
+      } else {
+        // Create new user
+        const insertUserQuery = `
+          INSERT INTO users (name, email, created_at, updated_at)
+          VALUES (?, ?, datetime('now'), datetime('now'))
+        `;
+        
+        const result = dbManager.run(insertUserQuery, [name, email]);
+        
+        // Get the created user
+        const newUserQuery = `SELECT id, name, email FROM users WHERE id = ?`;
+        const newUsers = dbManager.query(newUserQuery, [result.lastInsertRowid]);
+        user = newUsers[0];
+      }
+      
+      // Generate JWT token
+      const token = jwt.sign(
+        { userId: user.id, email: user.email },
+        JWT_SECRET,
+        { expiresIn: '7d' } // Token expires in 7 days
+      );
+      
+      return {
+        success: true,
+        message: 'Successfully logged in',
+        user: {
+          id: user.id.toString(),
+          name: user.name,
+          email: user.email
+        },
+        token,
+        errors: []
+      };
+      
+    } catch (error) {
+      console.error('Error in login mutation:', error);
+      return {
+        success: false,
+        message: 'Login failed',
+        user: null,
+        token: null,
+        errors: ['Internal server error']
+      };
+    }
+  },
+
+  logout: async (parent, args) => {
+    // For JWT-based auth, logout is handled client-side by removing the token
+    // In a more complex system, you might maintain a token blacklist
+    return {
+      success: true,
+      message: 'Successfully logged out',
+      user: null,
+      token: null,
+      errors: []
+    };
+  },
+
   // RSVP to an event
   rsvpToEvent: async (parent, args) => {
     const { eventId, userId } = args;

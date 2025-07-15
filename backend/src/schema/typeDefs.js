@@ -68,22 +68,18 @@ const typeDefs = buildSchema(`
     error: String
   }
 
-  # Query type - read operations
-  type Query {
-    # System status queries
-    hello: String
-    status: ServerStatus
-    dbStatus: DatabaseStatus
-    migrationStatus: MigrationStatus
-    
-    # Event queries
-    events: [Event!]!
-    event(id: ID!): Event
-    upcomingEvents: [Event!]!
-    
-    # User queries
-    users: [User!]!
-    user(id: ID!): User
+  # Authentication types
+  type AuthPayload {
+    success: Boolean!
+    message: String!
+    user: User
+    token: String
+    errors: [String!]
+  }
+
+  type LoginInput {
+    email: String!
+    name: String!
   }
 
   # RSVP result types
@@ -103,8 +99,31 @@ const typeDefs = buildSchema(`
     errors: [String!]
   }
 
+  # Query type - read operations
+  type Query {
+    # System status queries
+    hello: String
+    status: ServerStatus
+    dbStatus: DatabaseStatus
+    migrationStatus: MigrationStatus
+    
+    # Event queries
+    events: [Event!]!
+    event(id: ID!): Event
+    upcomingEvents: [Event!]!
+    
+    # User queries
+    users: [User!]!
+    user(id: ID!): User
+    me: User
+  }
+
   # Mutation type - write operations
   type Mutation {
+    # Authentication
+    login(email: String!, name: String!): AuthPayload!
+    logout: AuthPayload!
+    
     # RSVP management
     rsvpToEvent(eventId: ID!, userId: ID!): RsvpPayload!
     cancelRsvp(eventId: ID!, userId: ID!): CancelRsvpPayload!

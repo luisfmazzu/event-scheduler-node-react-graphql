@@ -50,11 +50,22 @@ app.use('/graphql', createHandler({
     return source[fieldName];
   },
   graphiql: process.env.NODE_ENV !== 'production', // Enable GraphiQL in development
-  context: (req) => ({
-    // Add request context here (user authentication, etc.)
-    req: req,
-    db: dbManager
-  })
+  context: (req) => {
+    // Extract JWT token from Authorization header
+    let token = null;
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    }
+    
+    return {
+      // Add request context here (user authentication, etc.)
+      req: req,
+      db: dbManager,
+      token: token
+    };
+  }
 }));
 
 // Enhanced health check endpoint with database and migration status
