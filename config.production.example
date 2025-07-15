@@ -1,0 +1,97 @@
+# Production Environment Configuration
+# Copy this file to .env and update with your production values
+
+# ================================
+# Backend Configuration
+# ================================
+
+# Server
+NODE_ENV=production
+PORT=4000
+
+# Security - IMPORTANT: Change these in production!
+JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-change-this
+JWT_EXPIRES_IN=7d
+
+# Database
+DATABASE_PATH=/app/data/events.db
+
+# CORS - Update with your frontend domain
+CORS_ORIGIN=https://your-frontend-domain.com
+
+# ================================
+# Frontend Configuration
+# ================================
+
+# API Endpoints - Update with your backend domain
+NEXT_PUBLIC_API_URL=https://your-api-domain.com
+NEXT_PUBLIC_WS_URL=wss://your-api-domain.com/graphql
+
+# Next.js
+NEXT_TELEMETRY_DISABLED=1
+
+# ================================
+# Docker Configuration
+# ================================
+
+# These are used by docker-compose.yml
+COMPOSE_PROJECT_NAME=event-scheduler
+JWT_SECRET=your-super-secret-jwt-key-minimum-32-characters-change-this
+
+# ================================
+# Deployment Specific
+# ================================
+
+# Health Check URLs (for load balancers)
+HEALTH_CHECK_ENDPOINT=/health
+GRAPHQL_ENDPOINT=/graphql
+
+# Rate Limiting (if implemented)
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Logging
+LOG_LEVEL=info
+LOG_FORMAT=json
+
+# ================================
+# Security Headers
+# ================================
+
+# Content Security Policy
+CSP_ENABLED=true
+CSP_DIRECTIVES="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;"
+
+# HTTPS Redirect
+FORCE_HTTPS=true
+
+# ================================
+# Performance
+# ================================
+
+# Compression
+COMPRESSION_ENABLED=true
+
+# Caching
+CACHE_MAX_AGE=31536000
+STATIC_CACHE_MAX_AGE=31536000
+
+# ================================
+# Monitoring (Optional)
+# ================================
+
+# Application Performance Monitoring
+# SENTRY_DSN=your-sentry-dsn
+# NEW_RELIC_LICENSE_KEY=your-newrelic-key
+
+# Analytics
+# GOOGLE_ANALYTICS_ID=your-ga-id
+
+# ================================
+# Database Backup (Optional)
+# ================================
+
+# Backup schedule (cron format)
+# BACKUP_SCHEDULE=0 2 * * *
+# BACKUP_RETENTION_DAYS=30
+# BACKUP_S3_BUCKET=your-backup-bucket 
