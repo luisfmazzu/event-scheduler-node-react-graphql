@@ -15,8 +15,8 @@ interface Event {
   date: string;
   location: string;
   attendeeCount: number;
-  maxAttendees?: number;
-  availableSpots?: number;
+  maxAttendees: number | null;
+  availableSpots: number | null;
   organizer: {
     name: string;
   };
