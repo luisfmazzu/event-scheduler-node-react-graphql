@@ -25,6 +25,7 @@ interface EventData {
     name: string;
     email: string;
   }>;
+  isUserAttending?: boolean;
 }
 
 export default function EventDetailsPage() {
@@ -35,6 +36,9 @@ export default function EventDetailsPage() {
   const [event, setEvent] = useState<EventData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Mock user ID for testing (in real app, this would come from auth context)
+  const currentUserId = "1";
 
   useEffect(() => {
     async function fetchEvent() {
@@ -51,7 +55,7 @@ export default function EventDetailsPage() {
           },
           body: JSON.stringify({
             query: `
-              query GetEventDetails($id: ID!) {
+              query GetEventDetails($id: ID!, $userId: ID!) {
                 event(id: $id) {
                   id
                   title
@@ -61,6 +65,7 @@ export default function EventDetailsPage() {
                   maxAttendees
                   attendeeCount
                   createdAt
+                  isUserAttending(userId: $userId)
                   organizer {
                     id
                     name
@@ -74,7 +79,7 @@ export default function EventDetailsPage() {
                 }
               }
             `,
-            variables: { id: eventId },
+            variables: { id: eventId, userId: currentUserId },
           }),
         });
 
@@ -101,7 +106,7 @@ export default function EventDetailsPage() {
     }
 
     fetchEvent();
-  }, [eventId]);
+  }, [eventId, currentUserId]);
 
   if (loading) {
     return (

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Calendar, MapPin, Users, Clock, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { AttendeeList } from '@/components/attendees/AttendeeList';
+import { RsvpButton } from '@/components/attendees/RsvpButton';
 
 interface EventDetailsProps {
   event: {
@@ -24,15 +25,27 @@ interface EventDetailsProps {
       name: string;
       email: string;
     }>;
+    isUserAttending?: boolean;
   };
 }
 
 export function EventDetails({ event }: EventDetailsProps) {
+  const [isAttending, setIsAttending] = useState(event.isUserAttending || false);
+  const [attendeeCount, setAttendeeCount] = useState(event.attendeeCount);
+  
   const eventDate = new Date(event.date);
   const createdDate = new Date(event.createdAt);
-  const availableSpots = event.maxAttendees ? event.maxAttendees - event.attendeeCount : null;
+  const availableSpots = event.maxAttendees ? event.maxAttendees - attendeeCount : null;
   const isEventFull = availableSpots !== null && availableSpots <= 0;
   const isPastEvent = eventDate < new Date();
+
+  // Mock user ID for testing (in real app, this would come from auth context)
+  const currentUserId = "1";
+
+  const handleRsvpChange = (newIsAttending: boolean, eventId: string) => {
+    setIsAttending(newIsAttending);
+    setAttendeeCount(prev => newIsAttending ? prev + 1 : prev - 1);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -51,7 +64,7 @@ export function EventDetails({ event }: EventDetailsProps) {
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              <span>{event.attendeeCount} attending</span>
+              <span>{attendeeCount} attending</span>
               {event.maxAttendees && (
                 <span className="text-gray-500">/ {event.maxAttendees} max</span>
               )}
@@ -79,14 +92,20 @@ export function EventDetails({ event }: EventDetailsProps) {
                 {isPastEvent && (
                   <p className="text-gray-500 font-medium">This event has ended</p>
                 )}
+                {isAttending && !isPastEvent && (
+                  <p className="text-blue-600 font-medium">You are registered for this event</p>
+                )}
               </div>
               <div className="flex gap-2">
-                <Button 
-                  variant={isEventFull || isPastEvent ? "secondary" : "default"}
-                  disabled={isEventFull || isPastEvent}
-                >
-                  {isPastEvent ? "Event Ended" : isEventFull ? "Full" : "RSVP"}
-                </Button>
+                {!isPastEvent && (
+                  <RsvpButton
+                    eventId={event.id}
+                    userId={currentUserId}
+                    isAttending={isAttending}
+                    isEventFull={isEventFull}
+                    onRsvpChange={handleRsvpChange}
+                  />
+                )}
                 <Button variant="outline">
                   Share Event
                 </Button>
@@ -122,7 +141,7 @@ export function EventDetails({ event }: EventDetailsProps) {
         <CardHeader>
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Attendees ({event.attendeeCount})
+            Attendees ({attendeeCount})
           </CardTitle>
         </CardHeader>
         <CardContent>
