@@ -1,11 +1,11 @@
 /**
- * UI Components Index
+ * UI Component Exports
  * 
- * Centralizes exports for all reusable UI components in the Event Scheduler.
- * This allows for clean imports throughout the application.
+ * Central export file for all UI components in the Event Scheduler application.
+ * Provides a clean interface for importing components throughout the app.
  */
 
-export { Button } from './Button';
-export { Card, CardHeader, CardContent, CardFooter } from './Card';
-export { Input, Textarea } from './Input';
-export { Modal, ModalActions, ConfirmModal } from './Modal'; 
+export { Button, buttonVariants } from './Button';
+export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent } from './Card';
+export { Input } from './Input';
+export { Modal } from './Modal'; 

@@ -5,6 +5,9 @@
  * for formatting, validation, and data manipulation.
  */
 
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
 /**
  * Formats a date string into a human-readable format
  * @param dateString - ISO date string or Date object
@@ -98,13 +101,13 @@ export const truncateText = (text: string, maxLength: number): string => {
 };
 
 /**
- * Combines CSS class names, filtering out falsy values
- * @param classes - Array of class names or conditional classes
- * @returns Combined class string
+ * Combines CSS class names with proper Tailwind CSS merging
+ * @param inputs - Class names to combine
+ * @returns Combined and merged class string
  */
-export const cn = (...classes: (string | undefined | null | false)[]): string => {
-  return classes.filter(Boolean).join(' ');
-};
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 /**
  * Debounce function to limit the rate of function calls
