@@ -86,10 +86,28 @@ const typeDefs = buildSchema(`
     user(id: ID!): User
   }
 
-  # Mutation type - write operations (to be implemented in Phase 2)
+  # RSVP result types
+  type RsvpPayload {
+    success: Boolean!
+    message: String!
+    event: Event
+    user: User
+    errors: [String!]
+  }
+
+  type CancelRsvpPayload {
+    success: Boolean!
+    message: String!
+    event: Event
+    user: User
+    errors: [String!]
+  }
+
+  # Mutation type - write operations
   type Mutation {
-    # Placeholder for future mutations
-    _placeholder: String
+    # RSVP management
+    rsvpToEvent(eventId: ID!, userId: ID!): RsvpPayload!
+    cancelRsvp(eventId: ID!, userId: ID!): CancelRsvpPayload!
   }
 `);
 
