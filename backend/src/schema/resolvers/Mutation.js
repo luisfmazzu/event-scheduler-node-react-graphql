@@ -50,7 +50,7 @@ const Mutation = {
       
       return {
         success: true,
-        message: 'Successfully logged in',
+        message: 'Login successful',
         user: {
           id: user.id.toString(),
           name: user.name,
@@ -61,43 +61,182 @@ const Mutation = {
       };
       
     } catch (error) {
-      console.error('Error in login mutation:', error);
+      console.error('Login error:', error);
       return {
         success: false,
         message: 'Login failed',
         user: null,
         token: null,
-        errors: ['Internal server error']
+        errors: ['An error occurred during login']
       };
     }
   },
 
-  logout: async (parent, args) => {
+  logout: async () => {
     // For JWT-based auth, logout is handled client-side by removing the token
-    // In a more complex system, you might maintain a token blacklist
+    // In a real app, you might want to maintain a blacklist of tokens
     return {
       success: true,
-      message: 'Successfully logged out',
+      message: 'Logout successful',
       user: null,
       token: null,
       errors: []
     };
   },
 
-  // RSVP to an event
+  // Event management mutations
+  createEvent: async (parent, args, context) => {
+    const { input } = args;
+    
+    try {
+      // Extract user info from context (assuming authentication middleware sets this)
+      // For now, we'll assume the organizer is user with ID 1
+      const organizerId = 1; // This should come from authenticated user context
+      
+      // Validate input
+      const errors = [];
+      
+      if (!input.title || input.title.trim().length === 0) {
+        errors.push({ message: 'Title is required', field: 'title' });
+      }
+      
+      if (!input.description || input.description.trim().length === 0) {
+        errors.push({ message: 'Description is required', field: 'description' });
+      }
+      
+      if (!input.date) {
+        errors.push({ message: 'Date is required', field: 'date' });
+      } else {
+        const eventDate = new Date(input.date);
+        const now = new Date();
+        if (eventDate <= now) {
+          errors.push({ message: 'Event date must be in the future', field: 'date' });
+        }
+      }
+      
+      if (!input.location || input.location.trim().length === 0) {
+        errors.push({ message: 'Location is required', field: 'location' });
+      }
+      
+      if (input.maxAttendees && input.maxAttendees < 1) {
+        errors.push({ message: 'Maximum attendees must be at least 1', field: 'maxAttendees' });
+      }
+      
+      if (errors.length > 0) {
+        return {
+          event: null,
+          errors
+        };
+      }
+      
+      // Insert the event
+      const insertEventQuery = `
+        INSERT INTO events (title, description, date, location, max_attendees, organizer_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `;
+      
+      const result = dbManager.run(insertEventQuery, [
+        input.title.trim(),
+        input.description.trim(),
+        input.date,
+        input.location.trim(),
+        input.maxAttendees || null,
+        organizerId
+      ]);
+      
+      // Get the created event with organizer info
+      const createdEventQuery = `
+        SELECT 
+          e.id,
+          e.title,
+          e.description,
+          e.date,
+          e.location,
+          e.max_attendees,
+          e.created_at,
+          e.updated_at,
+          u.id as organizer_id,
+          u.name as organizer_name,
+          u.email as organizer_email
+        FROM events e
+        JOIN users u ON e.organizer_id = u.id
+        WHERE e.id = ?
+      `;
+      
+      const eventResults = dbManager.query(createdEventQuery, [result.lastInsertRowid]);
+      
+      if (eventResults.length === 0) {
+        return {
+          event: null,
+          errors: [{ message: 'Failed to create event', field: null }]
+        };
+      }
+      
+      const event = eventResults[0];
+      
+      // Count attendees (should be 0 for new event)
+      const attendeeCountQuery = `SELECT COUNT(*) as count FROM rsvps WHERE event_id = ?`;
+      const attendeeCount = dbManager.query(attendeeCountQuery, [event.id])[0].count;
+      
+      return {
+        event: {
+          id: event.id.toString(),
+          title: event.title,
+          description: event.description,
+          date: event.date,
+          location: event.location,
+          maxAttendees: event.max_attendees,
+          attendeeCount,
+          createdAt: event.created_at,
+          updatedAt: event.updated_at,
+          organizer: {
+            id: event.organizer_id.toString(),
+            name: event.organizer_name,
+            email: event.organizer_email
+          }
+        },
+        errors: []
+      };
+      
+    } catch (error) {
+      console.error('Create event error:', error);
+      return {
+        event: null,
+        errors: [{ message: 'Failed to create event', field: null }]
+      };
+    }
+  },
+
+  // RSVP mutations
   rsvpToEvent: async (parent, args) => {
     const { eventId, userId } = args;
     
     try {
-      // Check if event exists
-      const eventQuery = `
-        SELECT id, title, max_attendees, 
-               (SELECT COUNT(*) FROM rsvps WHERE event_id = ?) as current_attendees
-        FROM events 
-        WHERE id = ?
+      // Check if user is already registered for this event
+      const existingRsvpQuery = `
+        SELECT id FROM rsvps 
+        WHERE user_id = ? AND event_id = ?
       `;
+      const existingRsvps = dbManager.query(existingRsvpQuery, [userId, eventId]);
       
-      const events = dbManager.query(eventQuery, [eventId, eventId]);
+      if (existingRsvps.length > 0) {
+        return {
+          success: false,
+          message: 'You are already registered for this event',
+          event: null,
+          user: null,
+          errors: ['Already registered']
+        };
+      }
+      
+      // Check if event exists and get event details
+      const eventQuery = `
+        SELECT e.*, u.name as organizer_name, u.email as organizer_email
+        FROM events e
+        JOIN users u ON e.organizer_id = u.id
+        WHERE e.id = ?
+      `;
+      const events = dbManager.query(eventQuery, [eventId]);
       
       if (events.length === 0) {
         return {
@@ -111,7 +250,21 @@ const Mutation = {
       
       const event = events[0];
       
-      // Check if user exists
+      // Check if event is full
+      const attendeeCountQuery = `SELECT COUNT(*) as count FROM rsvps WHERE event_id = ?`;
+      const attendeeCount = dbManager.query(attendeeCountQuery, [eventId])[0].count;
+      
+      if (event.max_attendees && attendeeCount >= event.max_attendees) {
+        return {
+          success: false,
+          message: 'Event is full',
+          event: null,
+          user: null,
+          errors: ['Event is full']
+        };
+      }
+      
+      // Get user details
       const userQuery = `SELECT id, name, email FROM users WHERE id = ?`;
       const users = dbManager.query(userQuery, [userId]);
       
@@ -127,69 +280,35 @@ const Mutation = {
       
       const user = users[0];
       
-      // Check if user is already registered
-      const existingRsvpQuery = `
-        SELECT id FROM rsvps 
-        WHERE event_id = ? AND user_id = ?
-      `;
-      
-      const existingRsvps = dbManager.query(existingRsvpQuery, [eventId, userId]);
-      
-      if (existingRsvps.length > 0) {
-        return {
-          success: false,
-          message: 'You are already registered for this event',
-          event: null,
-          user: null,
-          errors: ['Already registered']
-        };
-      }
-      
-      // Check if event is full
-      if (event.max_attendees && event.current_attendees >= event.max_attendees) {
-        return {
-          success: false,
-          message: 'Event is full',
-          event: null,
-          user: null,
-          errors: ['Event is full']
-        };
-      }
-      
       // Create RSVP
       const insertRsvpQuery = `
-        INSERT INTO rsvps (event_id, user_id, rsvp_date)
+        INSERT INTO rsvps (user_id, event_id, rsvp_date)
         VALUES (?, ?, datetime('now'))
       `;
       
-      dbManager.run(insertRsvpQuery, [eventId, userId]);
+      dbManager.run(insertRsvpQuery, [userId, eventId]);
       
-      // Get updated event data
-      const updatedEventQuery = `
-        SELECT e.*, u.name as organizer_name, u.email as organizer_email,
-               (SELECT COUNT(*) FROM rsvps WHERE event_id = e.id) as attendee_count
-        FROM events e
-        JOIN users u ON e.organizer_id = u.id
-        WHERE e.id = ?
-      `;
-      
-      const updatedEvents = dbManager.query(updatedEventQuery, [eventId]);
-      const updatedEvent = updatedEvents[0];
+      // Get updated attendee count
+      const updatedAttendeeCount = dbManager.query(attendeeCountQuery, [eventId])[0].count;
       
       return {
         success: true,
         message: 'Successfully registered for event',
         event: {
-          id: updatedEvent.id.toString(),
-          title: updatedEvent.title,
-          description: updatedEvent.description,
-          date: updatedEvent.date,
-          location: updatedEvent.location,
-          maxAttendees: updatedEvent.max_attendees,
-          attendeeCount: updatedEvent.attendee_count,
-          createdAt: updatedEvent.created_at,
-          updatedAt: updatedEvent.updated_at,
-          organizerId: updatedEvent.organizer_id
+          id: event.id.toString(),
+          title: event.title,
+          description: event.description,
+          date: event.date,
+          location: event.location,
+          maxAttendees: event.max_attendees,
+          attendeeCount: updatedAttendeeCount,
+          createdAt: event.created_at,
+          updatedAt: event.updated_at,
+          organizer: {
+            id: event.organizer_id.toString(),
+            name: event.organizer_name,
+            email: event.organizer_email
+          }
         },
         user: {
           id: user.id.toString(),
@@ -200,59 +319,27 @@ const Mutation = {
       };
       
     } catch (error) {
-      console.error('Error in rsvpToEvent mutation:', error);
+      console.error('RSVP error:', error);
       return {
         success: false,
         message: 'Failed to register for event',
         event: null,
         user: null,
-        errors: ['Internal server error']
+        errors: ['Registration failed']
       };
     }
   },
 
-  // Cancel RSVP to an event
   cancelRsvp: async (parent, args) => {
     const { eventId, userId } = args;
     
     try {
-      // Check if event exists
-      const eventQuery = `SELECT id, title FROM events WHERE id = ?`;
-      const events = dbManager.query(eventQuery, [eventId]);
-      
-      if (events.length === 0) {
-        return {
-          success: false,
-          message: 'Event not found',
-          event: null,
-          user: null,
-          errors: ['Event not found']
-        };
-      }
-      
-      // Check if user exists
-      const userQuery = `SELECT id, name, email FROM users WHERE id = ?`;
-      const users = dbManager.query(userQuery, [userId]);
-      
-      if (users.length === 0) {
-        return {
-          success: false,
-          message: 'User not found',
-          event: null,
-          user: null,
-          errors: ['User not found']
-        };
-      }
-      
-      const user = users[0];
-      
-      // Check if RSVP exists
+      // Check if user is registered for this event
       const existingRsvpQuery = `
         SELECT id FROM rsvps 
-        WHERE event_id = ? AND user_id = ?
+        WHERE user_id = ? AND event_id = ?
       `;
-      
-      const existingRsvps = dbManager.query(existingRsvpQuery, [eventId, userId]);
+      const existingRsvps = dbManager.query(existingRsvpQuery, [userId, eventId]);
       
       if (existingRsvps.length === 0) {
         return {
@@ -264,40 +351,61 @@ const Mutation = {
         };
       }
       
-      // Delete RSVP
-      const deleteRsvpQuery = `
-        DELETE FROM rsvps 
-        WHERE event_id = ? AND user_id = ?
-      `;
-      
-      dbManager.run(deleteRsvpQuery, [eventId, userId]);
-      
-      // Get updated event data
-      const updatedEventQuery = `
-        SELECT e.*, u.name as organizer_name, u.email as organizer_email,
-               (SELECT COUNT(*) FROM rsvps WHERE event_id = e.id) as attendee_count
+      // Get event and user details
+      const eventQuery = `
+        SELECT e.*, u.name as organizer_name, u.email as organizer_email
         FROM events e
         JOIN users u ON e.organizer_id = u.id
         WHERE e.id = ?
       `;
+      const events = dbManager.query(eventQuery, [eventId]);
       
-      const updatedEvents = dbManager.query(updatedEventQuery, [eventId]);
-      const updatedEvent = updatedEvents[0];
+      const userQuery = `SELECT id, name, email FROM users WHERE id = ?`;
+      const users = dbManager.query(userQuery, [userId]);
+      
+      if (events.length === 0 || users.length === 0) {
+        return {
+          success: false,
+          message: 'Event or user not found',
+          event: null,
+          user: null,
+          errors: ['Event or user not found']
+        };
+      }
+      
+      const event = events[0];
+      const user = users[0];
+      
+      // Remove RSVP
+      const deleteRsvpQuery = `
+        DELETE FROM rsvps 
+        WHERE user_id = ? AND event_id = ?
+      `;
+      
+      dbManager.run(deleteRsvpQuery, [userId, eventId]);
+      
+      // Get updated attendee count
+      const attendeeCountQuery = `SELECT COUNT(*) as count FROM rsvps WHERE event_id = ?`;
+      const updatedAttendeeCount = dbManager.query(attendeeCountQuery, [eventId])[0].count;
       
       return {
         success: true,
         message: 'Successfully cancelled registration',
         event: {
-          id: updatedEvent.id.toString(),
-          title: updatedEvent.title,
-          description: updatedEvent.description,
-          date: updatedEvent.date,
-          location: updatedEvent.location,
-          maxAttendees: updatedEvent.max_attendees,
-          attendeeCount: updatedEvent.attendee_count,
-          createdAt: updatedEvent.created_at,
-          updatedAt: updatedEvent.updated_at,
-          organizerId: updatedEvent.organizer_id
+          id: event.id.toString(),
+          title: event.title,
+          description: event.description,
+          date: event.date,
+          location: event.location,
+          maxAttendees: event.max_attendees,
+          attendeeCount: updatedAttendeeCount,
+          createdAt: event.created_at,
+          updatedAt: event.updated_at,
+          organizer: {
+            id: event.organizer_id.toString(),
+            name: event.organizer_name,
+            email: event.organizer_email
+          }
         },
         user: {
           id: user.id.toString(),
@@ -308,13 +416,13 @@ const Mutation = {
       };
       
     } catch (error) {
-      console.error('Error in cancelRsvp mutation:', error);
+      console.error('Cancel RSVP error:', error);
       return {
         success: false,
         message: 'Failed to cancel registration',
         event: null,
         user: null,
-        errors: ['Internal server error']
+        errors: ['Cancellation failed']
       };
     }
   }

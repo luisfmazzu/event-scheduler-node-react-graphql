@@ -99,6 +99,48 @@ const typeDefs = buildSchema(`
     errors: [String!]
   }
 
+  # Error type for mutations
+  type Error {
+    message: String!
+    field: String
+  }
+
+  # Create event input
+  input CreateEventInput {
+    title: String!
+    description: String!
+    date: String!
+    location: String!
+    maxAttendees: Int
+  }
+
+  # Update event input
+  input UpdateEventInput {
+    title: String
+    description: String
+    date: String
+    location: String
+    maxAttendees: Int
+  }
+
+  # Create event payload
+  type CreateEventPayload {
+    event: Event
+    errors: [Error!]
+  }
+
+  # Update event payload
+  type UpdateEventPayload {
+    event: Event
+    errors: [Error!]
+  }
+
+  # Delete event payload
+  type DeleteEventPayload {
+    deletedEventId: ID!
+    errors: [Error!]
+  }
+
   # Query type - read operations
   type Query {
     # System status queries
@@ -123,6 +165,11 @@ const typeDefs = buildSchema(`
     # Authentication
     login(email: String!, name: String!): AuthPayload!
     logout: AuthPayload!
+    
+    # Event management
+    createEvent(input: CreateEventInput!): CreateEventPayload!
+    updateEvent(id: ID!, input: UpdateEventInput!): UpdateEventPayload!
+    deleteEvent(id: ID!): DeleteEventPayload!
     
     # RSVP management
     rsvpToEvent(eventId: ID!, userId: ID!): RsvpPayload!

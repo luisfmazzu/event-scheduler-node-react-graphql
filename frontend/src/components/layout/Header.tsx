@@ -35,10 +35,12 @@ export function Header({ showCreateButton = true }: HeaderProps) {
             
             <div className="flex items-center gap-4">
               {isAuthenticated && showCreateButton && (
-                <Button className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Create Event
-                </Button>
+                <Link href="/events/create">
+                  <Button className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Create Event
+                  </Button>
+                </Link>
               )}
               
               {isLoading ? (
