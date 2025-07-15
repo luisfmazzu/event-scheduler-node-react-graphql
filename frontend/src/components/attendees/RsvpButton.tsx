@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Users, Check, X, Loader2 } from 'lucide-react';
 
@@ -22,11 +22,22 @@ export function RsvpButton({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [optimisticState, setOptimisticState] = useState(isAttending);
+
+  // Update optimistic state when prop changes
+  useEffect(() => {
+    setOptimisticState(isAttending);
+  }, [isAttending]);
 
   const handleRsvp = async () => {
     setIsLoading(true);
     setError(null);
     setSuccess(null);
+
+    // Optimistic update - immediately update UI
+    const newAttendingState = !optimisticState;
+    setOptimisticState(newAttendingState);
+    onRsvpChange?.(newAttendingState, eventId);
 
     try {
       const mutation = isAttending
@@ -74,14 +85,19 @@ export function RsvpButton({
 
       if (result.success) {
         setSuccess(result.message);
-        onRsvpChange?.(!isAttending, eventId);
         
         // Clear success message after 2 seconds
         setTimeout(() => setSuccess(null), 2000);
       } else {
+        // Revert optimistic update on error
+        setOptimisticState(isAttending);
+        onRsvpChange?.(isAttending, eventId);
         setError(result.errors.join(', ') || result.message);
       }
     } catch (err) {
+      // Revert optimistic update on error
+      setOptimisticState(isAttending);
+      onRsvpChange?.(isAttending, eventId);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsLoading(false);
@@ -128,8 +144,11 @@ export function RsvpButton({
     );
   }
 
+  // Use optimistic state for UI rendering
+  const currentAttendingState = optimisticState;
+
   // Main button states
-  if (isAttending) {
+  if (currentAttendingState) {
     return (
       <Button
         variant="outline"

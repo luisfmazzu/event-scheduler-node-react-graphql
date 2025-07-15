@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Users, Clock, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -32,6 +32,15 @@ interface EventDetailsProps {
 export function EventDetails({ event }: EventDetailsProps) {
   const [isAttending, setIsAttending] = useState(event.isUserAttending || false);
   const [attendeeCount, setAttendeeCount] = useState(event.attendeeCount);
+  const [attendees, setAttendees] = useState(event.attendees);
+  const [optimisticUpdate, setOptimisticUpdate] = useState(false);
+  
+  // Update state when event prop changes
+  useEffect(() => {
+    setIsAttending(event.isUserAttending || false);
+    setAttendeeCount(event.attendeeCount);
+    setAttendees(event.attendees);
+  }, [event]);
   
   const eventDate = new Date(event.date);
   const createdDate = new Date(event.createdAt);
@@ -43,12 +52,40 @@ export function EventDetails({ event }: EventDetailsProps) {
   const currentUserId = "1";
 
   const handleRsvpChange = (newIsAttending: boolean, eventId: string) => {
+    setOptimisticUpdate(true);
     setIsAttending(newIsAttending);
     setAttendeeCount(prev => newIsAttending ? prev + 1 : prev - 1);
+
+    // Optimistically update attendees list
+    if (newIsAttending) {
+      // Add current user to attendees list (would typically come from user context)
+      const currentUser = {
+        id: currentUserId,
+        name: "Current User", // In real app, this would come from auth context
+        email: "user@example.com" // In real app, this would come from auth context
+      };
+      setAttendees(prev => [...prev, currentUser]);
+    } else {
+      // Remove current user from attendees list
+      setAttendees(prev => prev.filter(attendee => attendee.id !== currentUserId));
+    }
+
+    // Clear optimistic update flag after a short delay
+    setTimeout(() => setOptimisticUpdate(false), 3000);
   };
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Optimistic update indicator */}
+      {optimisticUpdate && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+            <p className="text-blue-800 text-sm">Updating your registration...</p>
+          </div>
+        </div>
+      )}
+
       {/* Main Event Information */}
       <Card>
         <CardHeader>
@@ -64,7 +101,9 @@ export function EventDetails({ event }: EventDetailsProps) {
             </div>
             <div className="flex items-center gap-1">
               <Users className="w-4 h-4" />
-              <span>{attendeeCount} attending</span>
+              <span className={optimisticUpdate ? "text-blue-600 font-medium" : ""}>
+                {attendeeCount} attending
+              </span>
               {event.maxAttendees && (
                 <span className="text-gray-500">/ {event.maxAttendees} max</span>
               )}
@@ -93,7 +132,9 @@ export function EventDetails({ event }: EventDetailsProps) {
                   <p className="text-gray-500 font-medium">This event has ended</p>
                 )}
                 {isAttending && !isPastEvent && (
-                  <p className="text-blue-600 font-medium">You are registered for this event</p>
+                  <p className={`font-medium ${optimisticUpdate ? 'text-blue-600' : 'text-green-600'}`}>
+                    {optimisticUpdate ? 'Updating registration...' : 'You are registered for this event'}
+                  </p>
                 )}
               </div>
               <div className="flex gap-2">
@@ -141,11 +182,17 @@ export function EventDetails({ event }: EventDetailsProps) {
         <CardHeader>
           <CardTitle className="text-xl font-semibold flex items-center gap-2">
             <Users className="w-5 h-5" />
-            Attendees ({attendeeCount})
+            <span className={optimisticUpdate ? "text-blue-600" : ""}>
+              Attendees ({attendeeCount})
+            </span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <AttendeeList attendees={event.attendees} />
+          <AttendeeList 
+            attendees={attendees} 
+            pageSize={8}
+            showPagination={attendees.length > 8}
+          />
         </CardContent>
       </Card>
     </div>
