@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Search, Filter, Calendar, MapPin, Users } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 interface Event {
   id: string;
@@ -29,6 +30,7 @@ interface Event {
 }
 
 export default function EventsPage() {
+  const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,8 +123,7 @@ export default function EventsPage() {
   };
 
   const handleViewDetails = (eventId: string) => {
-    // TODO: Implement navigation to event details
-    console.log('View details for event:', eventId);
+    router.push(`/events/${eventId}`);
   };
 
   const upcomingCount = events.filter(event => new Date(event.date) > new Date()).length;
