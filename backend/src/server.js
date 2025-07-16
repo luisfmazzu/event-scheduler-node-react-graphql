@@ -14,12 +14,16 @@ const migrationRunner = require('./migrations/migrator');
 const schema = require('./schema');
 const { createLoaders } = require('./loaders');
 const { createSubscriptionServer } = require('./subscriptionServer');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Create Express app and HTTP server
 const app = express();
 const server = http.createServer(app);
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT;
+if (!PORT) {
+  throw new Error('Missing PORT environment variable.');
+}
 
 // Middleware
 app.use(cors({

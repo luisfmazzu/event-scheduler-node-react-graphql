@@ -10,6 +10,14 @@ const jwt = require('jsonwebtoken');
 const schema = require('./schema');
 const dbManager = require('./database');
 const { createLoaders } = require('./loaders');
+const { GraphQLError, parse, getOperationAST } = require('graphql');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+
+const PORT = process.env.PORT;
+if (!PORT) {
+  throw new Error('Missing PORT environment variable.');
+}
 
 // Create and configure the subscription server
 function createSubscriptionServer(server) {
@@ -77,13 +85,32 @@ function createSubscriptionServer(server) {
       onDisconnect: (ctx, code, reason) => {
         console.log('🔌 WebSocket client disconnected:', code, reason);
       },
-      onSubscribe: (ctx, msg) => {
-        console.log('📺 New subscription:', msg.payload?.query?.substring(0, 100) + '...');
-        return {
-          ...msg.payload,
-          // Add connection context
-          context: ctx.extra || {}
+      onSubscribe: async (ctx, msg) => {
+        console.log("onSubscribe called", msg.payload);
+        if (!msg.payload || !msg.payload.query) {
+          console.error('❌ Subscription received with missing or invalid query:', msg.payload);
+          return [new GraphQLError('Subscription query is missing or invalid.')];
+        }
+        let document;
+        try {
+          document = parse(msg.payload.query);
+        } catch (err) {
+          return [new GraphQLError('Invalid GraphQL query: ' + err.message)];
+        }
+        const operationAST = getOperationAST(document, msg.payload.operationName);
+        if (!operationAST || operationAST.operation !== 'subscription') {
+          console.error('❌ Subscription error: Not a subscription operation:', msg.payload);
+          return [new GraphQLError('Only subscription operations are allowed over this WebSocket.')];
+        }
+        const result = {
+          schema,
+          document,
+          variableValues: msg.payload.variables,
+          contextValue: ctx.extra || {},
+          operationName: msg.payload.operationName,
         };
+        console.log("onSubscribe return", result);
+        return result;
       },
       onError: (ctx, msg, errors) => {
         console.error('❌ Subscription error:', errors);
